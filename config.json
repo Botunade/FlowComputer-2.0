@@ -1,0 +1,14 @@
+{
+    "dp_min": 0.0,
+    "dp_max": 1.0,
+    "press_min": 0.0,
+    "press_max": 60.0,
+    "temp_min": 0.0,
+    "temp_max": 80.0,
+    "pipe_dia": 3.0,
+    "orifice_dia": 2.0,
+    "fluid_density": 1.0,
+    "dynamic": 1.0,
+    "atmospheric": 1.0,
+    "isentropic": 1.0
+}

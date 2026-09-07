@@ -1,0 +1,431 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Dialog</class>
+ <widget class="QDialog" name="Dialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1003</width>
+    <height>579</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Dialog</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="0">
+    <widget class="QTabWidget" name="main">
+     <property name="currentIndex">
+      <number>3</number>
+     </property>
+     <widget class="QWidget" name="Main_Dashboard">
+      <attribute name="title">
+       <string>Main_Dashboard</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_14">
+       <item row="0" column="0">
+        <widget class="QLabel" name="label">
+         <property name="text">
+          <string>Flow Rate</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="2">
+        <widget class="QLabel" name="label_2">
+         <property name="text">
+          <string>Temperature</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLCDNumber" name="lcd_flow_rate"/>
+       </item>
+       <item row="1" column="2">
+        <widget class="QLCDNumber" name="lcd_temp"/>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_3">
+         <property name="text">
+          <string>Pressure</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="2">
+        <widget class="QLabel" name="label_4">
+         <property name="text">
+          <string>Differential Pressure</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLCDNumber" name="lcd_pressure"/>
+       </item>
+       <item row="3" column="2">
+        <widget class="QLCDNumber" name="lcd_dp"/>
+       </item>
+       <item row="4" column="1">
+        <widget class="QLabel" name="label_5">
+         <property name="text">
+          <string>Totalizer</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <widget class="QLCDNumber" name="lcd_totalizer"/>
+       </item>
+       <item row="0" column="1">
+        <widget class="QPushButton" name="btnSimulationToggle">
+         <property name="text">
+          <string>SImulation Mode : ON</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="Trends">
+      <attribute name="title">
+       <string>Trends</string>
+      </attribute>
+      <widget class="QTabWidget" name="tabWidget">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>0</y>
+         <width>971</width>
+         <height>541</height>
+        </rect>
+       </property>
+       <property name="currentIndex">
+        <number>2</number>
+       </property>
+       <widget class="QWidget" name="tab_flow">
+        <attribute name="title">
+         <string>Flow Rate</string>
+        </attribute>
+        <layout class="QGridLayout" name="gridLayout_3">
+         <item row="0" column="0">
+          <widget class="QGraphicsView" name="graph_flow"/>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="tab_pressure">
+        <attribute name="title">
+         <string>Pressure</string>
+        </attribute>
+        <layout class="QGridLayout" name="gridLayout_4">
+         <item row="0" column="0">
+          <widget class="QGraphicsView" name="graph_pressure"/>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="tab_temp">
+        <attribute name="title">
+         <string>Temperature</string>
+        </attribute>
+        <layout class="QGridLayout" name="gridLayout_5">
+         <item row="0" column="0">
+          <widget class="QGraphicsView" name="graph_temp"/>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="tab_dp">
+        <attribute name="title">
+         <string>Differential Pressure</string>
+        </attribute>
+        <layout class="QGridLayout" name="gridLayout_6">
+         <item row="0" column="0">
+          <widget class="QGraphicsView" name="graph_dp"/>
+         </item>
+        </layout>
+       </widget>
+      </widget>
+     </widget>
+     <widget class="QWidget" name="Data_Logger">
+      <attribute name="title">
+       <string>Data_Logger</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_2">
+       <item row="0" column="0">
+        <widget class="QTableWidget" name="tableWidget">
+         <column>
+          <property name="text">
+           <string>Timestamp</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Pressure</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Flow rate</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Temperature</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Differential Pressure</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Totalizer</string>
+          </property>
+         </column>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="Calibrations">
+      <attribute name="title">
+       <string>Calibrations</string>
+      </attribute>
+      <widget class="QTabWidget" name="tab_orifice">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>0</y>
+         <width>971</width>
+         <height>521</height>
+        </rect>
+       </property>
+       <property name="currentIndex">
+        <number>1</number>
+       </property>
+       <widget class="QWidget" name="tab">
+        <attribute name="title">
+         <string>Transmitters</string>
+        </attribute>
+        <layout class="QGridLayout" name="gridLayout_13">
+         <item row="1" column="0">
+          <widget class="QLabel" name="label_6">
+           <property name="text">
+            <string>DP Transmitter Nameplate (bar)</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="0">
+          <widget class="QLabel" name="label_9">
+           <property name="text">
+            <string>Temperature Nameplate (C)</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="label_8">
+           <property name="text">
+            <string>Static Pressure Nameplate (bar)</string>
+           </property>
+          </widget>
+         </item>
+         <item row="6" column="0">
+          <layout class="QGridLayout" name="gridLayout_12">
+           <item row="0" column="0">
+            <widget class="QDoubleSpinBox" name="spin_temp_min">
+             <property name="decimals">
+              <number>4</number>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QDoubleSpinBox" name="spin_temp_max">
+             <property name="decimals">
+              <number>4</number>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item row="2" column="0">
+          <layout class="QGridLayout" name="gridLayout_7">
+           <item row="0" column="0">
+            <widget class="QDoubleSpinBox" name="spin_dp_min">
+             <property name="decimals">
+              <number>4</number>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QDoubleSpinBox" name="spin_dp_max">
+             <property name="decimals">
+              <number>4</number>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item row="4" column="0">
+          <layout class="QGridLayout" name="gridLayout_11">
+           <item row="0" column="0">
+            <widget class="QDoubleSpinBox" name="spin_press_min">
+             <property name="decimals">
+              <number>4</number>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QDoubleSpinBox" name="spin_press_max">
+             <property name="decimals">
+              <number>4</number>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item row="0" column="0">
+          <widget class="QPushButton" name="btn_save_calibration">
+           <property name="text">
+            <string>Save Changes</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="widget">
+        <attribute name="title">
+         <string>Orifice</string>
+        </attribute>
+        <layout class="QGridLayout" name="gridLayout_8">
+         <item row="0" column="0">
+          <layout class="QFormLayout" name="formLayout">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_10">
+             <property name="text">
+              <string>Pipe Internal Diameter (inch)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_13">
+             <property name="text">
+              <string>Orifice Bore Diameter (inch)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_15">
+             <property name="text">
+              <string>Base Fluid Density(kg/cm3)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_14">
+             <property name="text">
+              <string>Dynamic Viscosity(cP)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="label_12">
+             <property name="text">
+              <string>Atmospheric Pressure(bar)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0">
+            <widget class="QLabel" name="label_16">
+             <property name="text">
+              <string>Isentropic Exponent</string>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0">
+            <widget class="QLabel" name="label_17">
+             <property name="text">
+              <string>Pipe Expansion Factor(1/C)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="0">
+            <widget class="QLabel" name="label_11">
+             <property name="text">
+              <string>Orifice Expansion Factor(1/C)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QDoubleSpinBox" name="spin_pipe_dia">
+             <property name="decimals">
+              <number>4</number>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QDoubleSpinBox" name="spin_orifice_dia">
+             <property name="decimals">
+              <number>4</number>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QDoubleSpinBox" name="spin_fluid_density">
+             <property name="decimals">
+              <number>4</number>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QDoubleSpinBox" name="spin_dynamic">
+             <property name="decimals">
+              <number>4</number>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QDoubleSpinBox" name="spin_atmospheric">
+             <property name="decimals">
+              <number>4</number>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="1">
+            <widget class="QDoubleSpinBox" name="spin_isentropic">
+             <property name="decimals">
+              <number>4</number>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="1">
+            <widget class="QDoubleSpinBox" name="spin_pipe_expansion">
+             <property name="decimals">
+              <number>4</number>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="1">
+            <widget class="QDoubleSpinBox" name="spin_orifice_expansion">
+             <property name="decimals">
+              <number>4</number>
+             </property>
+            </widget>
+           </item>
+           <item row="8" column="0">
+            <widget class="QPushButton" name="btn_save_calibration_2">
+             <property name="text">
+              <string>Save Changes</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </widget>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
