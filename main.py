@@ -1,9 +1,14 @@
 import sys
 import random
 import math
-from PyQt5.QtWidgets import QApplication, QDialog, QMessageBox, QLabel, QVBoxLayout, QDoubleSpinBox, QLCDNumber, QTableWidgetItem
-from PyQt5.QtCore import QTimer, Qt, QDateTime
-from PyQt5 import uic
+import json
+import os
+from PySide6.QtWidgets import (
+    QApplication, QDialog, QMessageBox, QLabel, QVBoxLayout,
+    QDoubleSpinBox, QLCDNumber, QTableWidgetItem, QWidget
+)
+from PySide6.QtCore import QTimer, Qt, QDateTime, QFile, QObject
+from PySide6.QtUiTools import QUiLoader
 import pyqtgraph as pg
 
 try:
@@ -18,7 +23,7 @@ except (ImportError, NotImplementedError):
 class AegisPrimeSupervisor(QDialog):
     def __init__(self, parent, message):
         super().__init__(parent)
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint)
         self.setStyleSheet("""
             QDialog { background-color: #0d1117; border: 2px solid #8957e5; border-radius: 8px; }
             QLabel { color: #0ea5e9; font-family: 'Segoe UI'; font-weight: bold; font-size: 20px; }
@@ -37,13 +42,42 @@ class AegisPrimeSupervisor(QDialog):
 class DashboardApp(QDialog):
     def __init__(self):
         super().__init__()
-        uic.loadUi('dashboard.ui', self)
+        loader = QUiLoader()
+        ui_file = QFile('dashboard.ui')
+        if not ui_file.open(QFile.ReadOnly):
+            raise RuntimeError(f"Cannot open dashboard.ui: {ui_file.errorString()}")
+        self.ui = loader.load(ui_file, self)
+        ui_file.close()
 
+        # Layout loaded UI inside this QDialog
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.ui)
+
+        # Bind child objects so self.<name> references work seamlessly
+        for obj in self.findChildren(QObject):
+            name = obj.objectName()
+            if name:
+                setattr(self, name, obj)
+
+        # 1. Override default Qt limits so loaded values over 99.99 don't get clipped
         for spinbox in self.findChildren(QDoubleSpinBox):
             spinbox.setMaximum(99999.99)
             
         for lcd in self.findChildren(QLCDNumber):
-            lcd.setSegmentStyle(QLCDNumber.Flat)
+            lcd.setSegmentStyle(QLCDNumber.SegmentStyle.Flat)
+
+        # 2. Config File Path
+        self.config_file = "config.json"
+        
+        # Load previous calibrations into UI
+        self.load_configuration()
+
+        # Connect Save Buttons to the save function
+        if hasattr(self, 'btn_save_calibration'):
+            self.btn_save_calibration.clicked.connect(self.save_configuration)
+        if hasattr(self, 'btn_save_calibration_2'):
+            self.btn_save_calibration_2.clicked.connect(self.save_configuration)
 
         self.SIMULATION_MODE = True
         self.hardware_fault_acknowledged = False
@@ -76,8 +110,9 @@ class DashboardApp(QDialog):
             except Exception as e:
                 print(f"Hardware init warning: {e}")
 
-        self.btnSimulationToggle.toggled.connect(self.toggle_simulation_mode)
-        self.btnSimulationToggle.setChecked(True)
+        if hasattr(self, 'btnSimulationToggle'):
+            self.btnSimulationToggle.toggled.connect(self.toggle_simulation_mode)
+            self.btnSimulationToggle.setChecked(True)
 
         self.ai_facts = [
             "Orifice plates experience permanent pressure loss. Ensure your beta ratio is optimized.",
@@ -90,15 +125,68 @@ class DashboardApp(QDialog):
         self.aegis_timer.timeout.connect(self.trigger_aegis_popup)
         self.aegis_timer.start(15000)
 
-        # 1-second timer for process polling and UI updates
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_system_cycle)
         self.timer.start(1000)
 
-        # 10-second timer exclusively for data logging
         self.logger_timer = QTimer(self)
         self.logger_timer.timeout.connect(self.log_data_to_table)
         self.logger_timer.start(10000)
+
+    def load_configuration(self):
+        """Loads JSON data and populates the UI spin boxes on startup"""
+        if os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, 'r') as f:
+                    config = json.load(f)
+                    
+                # Apply saved values back to the UI widgets
+                if hasattr(self, 'spin_dp_min'): self.spin_dp_min.setValue(config.get("dp_min", 0.0))
+                if hasattr(self, 'spin_dp_max'): self.spin_dp_max.setValue(config.get("dp_max", 2500.0))
+                
+                if hasattr(self, 'spin_press_min'): self.spin_press_min.setValue(config.get("press_min", 0.0))
+                if hasattr(self, 'spin_press_max'): self.spin_press_max.setValue(config.get("press_max", 10.0))
+                
+                if hasattr(self, 'spin_temp_min'): self.spin_temp_min.setValue(config.get("temp_min", 0.0))
+                if hasattr(self, 'spin_temp_max'): self.spin_temp_max.setValue(config.get("temp_max", 150.0))
+                
+                if hasattr(self, 'spin_pipe_dia'): self.spin_pipe_dia.setValue(config.get("pipe_dia", 50.0))
+                if hasattr(self, 'spin_orifice_dia'): self.spin_orifice_dia.setValue(config.get("orifice_dia", 25.0))
+                if hasattr(self, 'spin_fluid_density'): self.spin_fluid_density.setValue(config.get("fluid_density", 1000.0))
+                if hasattr(self, 'spin_dynamic'): self.spin_dynamic.setValue(config.get("dynamic", 1.0))
+                if hasattr(self, 'spin_atmospheric'): self.spin_atmospheric.setValue(config.get("atmospheric", 1.01325))
+                if hasattr(self, 'spin_isentropic'): self.spin_isentropic.setValue(config.get("isentropic", 1.4))
+                if hasattr(self, 'spin_pipe_expansion'): self.spin_pipe_expansion.setValue(config.get("pipe_expansion", 0.0))
+                if hasattr(self, 'spin_orifice_expansion'): self.spin_orifice_expansion.setValue(config.get("orifice_expansion", 0.0))
+                
+            except Exception as e:
+                print(f"Error loading configuration: {e}")
+
+    def save_configuration(self):
+        """Extracts values from UI, writes to JSON, and shows a success prompt"""
+        config = {
+            "dp_min": self.spin_dp_min.value() if hasattr(self, 'spin_dp_min') else 0.0,
+            "dp_max": self.spin_dp_max.value() if hasattr(self, 'spin_dp_max') else 2500.0,
+            "press_min": self.spin_press_min.value() if hasattr(self, 'spin_press_min') else 0.0,
+            "press_max": self.spin_press_max.value() if hasattr(self, 'spin_press_max') else 10.0,
+            "temp_min": self.spin_temp_min.value() if hasattr(self, 'spin_temp_min') else 0.0,
+            "temp_max": self.spin_temp_max.value() if hasattr(self, 'spin_temp_max') else 150.0,
+            "pipe_dia": self.spin_pipe_dia.value() if hasattr(self, 'spin_pipe_dia') else 50.0,
+            "orifice_dia": self.spin_orifice_dia.value() if hasattr(self, 'spin_orifice_dia') else 25.0,
+            "fluid_density": self.spin_fluid_density.value() if hasattr(self, 'spin_fluid_density') else 1000.0,
+            "dynamic": self.spin_dynamic.value() if hasattr(self, 'spin_dynamic') else 1.0,
+            "atmospheric": self.spin_atmospheric.value() if hasattr(self, 'spin_atmospheric') else 1.01325,
+            "isentropic": self.spin_isentropic.value() if hasattr(self, 'spin_isentropic') else 1.4,
+            "pipe_expansion": self.spin_pipe_expansion.value() if hasattr(self, 'spin_pipe_expansion') else 0.0,
+            "orifice_expansion": self.spin_orifice_expansion.value() if hasattr(self, 'spin_orifice_expansion') else 0.0
+        }
+        
+        try:
+            with open(self.config_file, 'w') as f:
+                json.dump(config, f, indent=4)
+            QMessageBox.information(self, "Aegis Prime", "Calibration settings saved successfully!")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save settings: {e}")
 
     def setup_charts_dynamically(self):
         def replace_graph(layout, old_widget, title, color):
@@ -129,13 +217,11 @@ class DashboardApp(QDialog):
             self.btnSimulationToggle.setText("Hardware Mode: ACTIVE")
 
     def scale_4_20ma_to_engineering(self, voltage, unit_type):
-        """Scales ADC voltage dynamically using the Calibrations tab limits"""
         v_min, v_max = 0.48, 2.40
-        
         if unit_type == "pressure":
             span_min = self.spin_press_min.value()
             span_max = self.spin_press_max.value()
-            if span_max <= span_min: span_max = span_min + 10.0 # Safety fallback
+            if span_max <= span_min: span_max = span_min + 10.0 
         elif unit_type == "dp":
             span_min = self.spin_dp_min.value()
             span_max = self.spin_dp_max.value()
@@ -162,17 +248,14 @@ class DashboardApp(QDialog):
         sensor_fault = False
 
         if self.SIMULATION_MODE:
-            # Simulate a fluctuating 4-20mA loop voltage (running at approx 50% span, 1.44V)
             sim_v_press = 1.44 + random.uniform(-0.02, 0.02)
             sim_v_dp = 1.44 + random.uniform(-0.05, 0.05)
             sim_v_temp = 1.44 + random.uniform(-0.01, 0.01)
             
-            # Apply mathematical scaling to simulated voltage
             raw_pressure_val = self.scale_4_20ma_to_engineering(sim_v_press, "pressure")
             raw_dp_val = self.scale_4_20ma_to_engineering(sim_v_dp, "dp")
             raw_temp_val = self.scale_4_20ma_to_engineering(sim_v_temp, "temp")
             
-            # Random pressure spike simulation
             if random.random() < 0.05:
                 raw_pressure_val += (self.spin_press_max.value() * 0.1) 
         else:
@@ -186,7 +269,7 @@ class DashboardApp(QDialog):
                     else:
                         raw_pressure_val = self.scale_4_20ma_to_engineering(v_press, "pressure")
                         raw_dp_val = self.scale_4_20ma_to_engineering(v_dp, "dp")
-                        raw_temp_val = self.scale_4_20ma_to_engineering(1.44, "temp") # Placeholder for real temp input
+                        raw_temp_val = self.scale_4_20ma_to_engineering(1.44, "temp") 
                 except Exception:
                     sensor_fault = True
 
@@ -196,7 +279,6 @@ class DashboardApp(QDialog):
                     self.hardware_fault_acknowledged = True
                     QMessageBox.critical(self, "Hardware Alert", "4-20mA loop fault detected!\nSwitch to Simulation Mode to refresh.")
 
-        # Update global state for logging and UI
         self.filtered_pressure = (self.alpha * raw_pressure_val) + ((1 - self.alpha) * self.filtered_pressure)
         self.filtered_dp = (self.alpha * raw_dp_val) + ((1 - self.alpha) * self.filtered_dp)
         self.current_temp = raw_temp_val
@@ -204,7 +286,6 @@ class DashboardApp(QDialog):
         
         self.totalizer_m3 += (self.current_flow_m3h / 3600.0)
 
-        # Update Rolling Chart Buffers
         self.ydata_flow = self.ydata_flow[1:] + [self.current_flow_m3h]
         self.ydata_pressure = self.ydata_pressure[1:] + [self.filtered_pressure]
         self.ydata_temp = self.ydata_temp[1:] + [self.current_temp]
@@ -222,7 +303,6 @@ class DashboardApp(QDialog):
         self.lcd_totalizer.display(round(self.totalizer_m3, 2))
 
     def log_data_to_table(self):
-        """Appends a row to the Data Logger table every 10 seconds."""
         if not hasattr(self, 'tableWidget'): return
         
         timestamp = QDateTime.currentDateTime().toString("yyyy-MM-dd HH:mm:ss")
@@ -236,7 +316,6 @@ class DashboardApp(QDialog):
         self.tableWidget.setItem(row_position, 4, QTableWidgetItem(f"{self.filtered_dp:.1f}"))
         self.tableWidget.setItem(row_position, 5, QTableWidgetItem(f"{self.totalizer_m3:.2f}"))
         
-        # Auto-scroll to the latest entry
         self.tableWidget.scrollToBottom()
 
 if __name__ == '__main__':
@@ -261,4 +340,4 @@ if __name__ == '__main__':
 
     window = DashboardApp()
     window.showMaximized()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

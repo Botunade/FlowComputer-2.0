@@ -23,4 +23,5 @@ PySpice
 schemdraw
 plotly
 pyqtgraph
+PySide6
 adafruit-circuitpython-ads1x15
