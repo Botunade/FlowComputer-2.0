@@ -7,9 +7,40 @@ from PySide6.QtWidgets import (
     QApplication, QDialog, QMessageBox, QLabel, QVBoxLayout,
     QDoubleSpinBox, QLCDNumber, QTableWidgetItem, QWidget
 )
-from PySide6.QtCore import QTimer, Qt, QDateTime, QFile, QObject
+from PySide6.QtCore import QTimer, Qt, QDateTime, QFile, QIODevice, QObject
 from PySide6.QtUiTools import QUiLoader
 import pyqtgraph as pg
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+class UiLoader(QUiLoader):
+    def __init__(self, base_instance):
+        super().__init__()
+        self.base_instance = base_instance
+
+    def createWidget(self, class_name, parent=None, name=""):
+        if parent is None and self.base_instance:
+            return self.base_instance
+        else:
+            widget = super().createWidget(class_name, parent, name)
+            if self.base_instance and name:
+                setattr(self.base_instance, name, widget)
+            return widget
+
+def load_ui(ui_file_path, base_instance):
+    loader = UiLoader(base_instance)
+    ui_file = QFile(ui_file_path)
+    if not ui_file.open(QIODevice.ReadOnly):
+        raise RuntimeError(f"Cannot open {ui_file_path}: {ui_file.errorString()}")
+    widget = loader.load(ui_file)
+    ui_file.close()
+
+    if base_instance:
+        for obj in base_instance.findChildren(QObject):
+            name = obj.objectName()
+            if name and not hasattr(base_instance, name):
+                setattr(base_instance, name, obj)
+    return widget
 
 try:
     import board
@@ -42,23 +73,9 @@ class AegisPrimeSupervisor(QDialog):
 class DashboardApp(QDialog):
     def __init__(self):
         super().__init__()
-        loader = QUiLoader()
-        ui_file = QFile('dashboard.ui')
-        if not ui_file.open(QFile.ReadOnly):
-            raise RuntimeError(f"Cannot open dashboard.ui: {ui_file.errorString()}")
-        self.ui = loader.load(ui_file, self)
-        ui_file.close()
-
-        # Layout loaded UI inside this QDialog
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.ui)
-
-        # Bind child objects so self.<name> references work seamlessly
-        for obj in self.findChildren(QObject):
-            name = obj.objectName()
-            if name:
-                setattr(self, name, obj)
+        # Load dashboard.ui directly into self
+        ui_path = os.path.join(BASE_DIR, "dashboard.ui")
+        load_ui(ui_path, self)
 
         # 1. Override default Qt limits so loaded values over 99.99 don't get clipped
         for spinbox in self.findChildren(QDoubleSpinBox):
@@ -68,7 +85,7 @@ class DashboardApp(QDialog):
             lcd.setSegmentStyle(QLCDNumber.SegmentStyle.Flat)
 
         # 2. Config File Path
-        self.config_file = "config.json"
+        self.config_file = os.path.join(BASE_DIR, "config.json")
         
         # Load previous calibrations into UI
         self.load_configuration()
