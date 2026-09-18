@@ -26,7 +26,7 @@ class AegisPrimeSupervisor(QDialog):
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint)
         self.setStyleSheet("""
             QDialog { background-color: #0d1117; border: 2px solid #8957e5; border-radius: 8px; }
-            QLabel { color: #0ea5e9; font-family: 'Segoe UI'; font-weight: bold; font-size: 20px; }
+            QLabel { color: #0ea5e9; font-family: 'Segoe UI'; font-weight: bold; font-size: 15pt; }
         """)
         layout = QVBoxLayout()
         label = QLabel(f"🤖 Aegis Prime:\n\n{message}")
@@ -323,17 +323,17 @@ if __name__ == '__main__':
     
     app.setStyleSheet("""
         QDialog { background-color: #0d1117; }
-        QWidget { color: #c9d1d9; font-family: 'Segoe UI', 'Roboto', sans-serif; font-size: 18px; }
+        QWidget { color: #c9d1d9; font-family: 'Segoe UI', 'Roboto', sans-serif; font-size: 14pt; }
         QLCDNumber { background-color: #010409; color: #23d18b; border: 2px solid #30363d; border-radius: 8px; min-height: 80px; }
         QTableWidget, QTableView { background-color: #010409; color: #0ea5e9; gridline-color: #30363d; border: 1px solid #30363d; selection-background-color: #21262d; }
-        QHeaderView::section { background-color: #161b22; color: #c9d1d9; padding: 8px; border: 1px solid #30363d; font-weight: bold; font-size: 16px; }
+        QHeaderView::section { background-color: #161b22; color: #c9d1d9; padding: 8px; border: 1px solid #30363d; font-weight: bold; font-size: 12pt; }
         QTabWidget::pane { border: 1px solid #30363d; background-color: #161b22; border-radius: 6px; }
-        QTabBar::tab { background: #0d1117; color: #8b949e; padding: 14px 28px; min-width: 180px; font-size: 20px; font-weight: bold; border: 1px solid transparent; }
+        QTabBar::tab { background: #0d1117; color: #8b949e; padding: 14px 28px; min-width: 180px; font-size: 15pt; font-weight: bold; border: 1px solid transparent; }
         QTabBar::tab:selected { color: #0ea5e9; border-bottom: 2px solid #0ea5e9; }
         QTabBar::tab:hover { color: #ffffff; background: #161b22; }
-        QDoubleSpinBox, QSpinBox, QLineEdit { background-color: #010409; color: #0ea5e9; border: 1px solid #30363d; padding: 10px; border-radius: 4px; font-weight: bold; font-size: 20px; }
+        QDoubleSpinBox, QSpinBox, QLineEdit { background-color: #010409; color: #0ea5e9; border: 1px solid #30363d; padding: 10px; border-radius: 4px; font-weight: bold; font-size: 15pt; }
         QDoubleSpinBox:focus { border: 1px solid #8957e5; }
-        QPushButton { background-color: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 12px 20px; color: #c9d1d9; font-weight: bold; font-size: 18px; }
+        QPushButton { background-color: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 12px 20px; color: #c9d1d9; font-weight: bold; font-size: 14pt; }
         QPushButton:hover { background-color: #30363d; }
         QPushButton:checked { background-color: #8957e5; border-color: #a371f7; color: #ffffff; }
     """)
