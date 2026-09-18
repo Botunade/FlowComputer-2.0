@@ -55,20 +55,35 @@ class AegisPrimeSupervisor(QDialog):
     def __init__(self, parent, message):
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
         self.setStyleSheet("""
             QDialog { background-color: #0d1117; border: 2px solid #8957e5; border-radius: 8px; }
-            QLabel { color: #0ea5e9; font-family: 'Segoe UI'; font-weight: bold; font-size: 15pt; }
+            QLabel { color: #0ea5e9; font-family: 'Segoe UI', 'Roboto', sans-serif; font-weight: bold; font-size: 10pt; }
         """)
         layout = QVBoxLayout()
-        label = QLabel(f"🤖 Aegis Prime:\n\n{message}")
+        layout.setContentsMargins(12, 10, 12, 10)
+        label = QLabel(f"🤖 Aegis Prime:\n{message}")
         label.setWordWrap(True)
         layout.addWidget(label)
         self.setLayout(layout)
-        self.resize(600, 200) 
+        
         if parent:
-            geo = parent.geometry()
-            self.move(geo.width() - 620, geo.height() - 250)
-        QTimer.singleShot(8000, self.close) 
+            p_geo = parent.geometry()
+            popup_w = min(360, max(260, int(p_geo.width() * 0.38)))
+            self.setFixedWidth(popup_w)
+            self.adjustSize()
+            popup_h = self.sizeHint().height()
+            margin = 16
+            x = p_geo.x() + p_geo.width() - popup_w - margin
+            y = p_geo.y() + p_geo.height() - popup_h - margin
+            self.move(max(p_geo.x() + margin, x), max(p_geo.y() + margin, y))
+        else:
+            self.resize(320, 90)
+
+        QTimer.singleShot(8000, self.close)
+
+    def mousePressEvent(self, event):
+        self.close() 
 
 class DashboardApp(QDialog):
     def __init__(self):
