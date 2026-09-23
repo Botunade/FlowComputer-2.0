@@ -25,3 +25,4 @@ plotly
 pyqtgraph
 PySide6
 adafruit-circuitpython-ads1x15
+pyrebase4

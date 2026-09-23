@@ -185,6 +185,27 @@
        </item>
       </layout>
      </widget>
+     <widget class="QWidget" name="Aegis_Logs">
+      <attribute name="title">
+       <string>Aegis Logs</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_15">
+       <item row="0" column="0">
+        <widget class="QTableWidget" name="table_aegis_logs">
+         <column>
+          <property name="text">
+           <string>Timestamp</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Message</string>
+          </property>
+         </column>
+        </widget>
+       </item>
+      </layout>
+     </widget>
      <widget class="QWidget" name="Calibrations">
       <attribute name="title">
        <string>Calibrations</string>

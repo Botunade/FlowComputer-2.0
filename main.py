@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import QTimer, Qt, QDateTime, QFile, QIODevice, QObject
 from PySide6.QtUiTools import QUiLoader
 import pyqtgraph as pg
+import sqlite3
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -42,6 +43,19 @@ def load_ui(ui_file_path, base_instance):
                 setattr(base_instance, name, obj)
     return widget
 
+def init_aegis_logs_db(db_path):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS aegis_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL,
+            message TEXT NOT NULL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
 try:
     import board
     import busio
@@ -52,8 +66,10 @@ except (ImportError, NotImplementedError):
     HARDWARE_AVAILABLE = False
 
 class AegisPrimeSupervisor(QDialog):
-    def __init__(self, parent, message):
+    def __init__(self, parent, message, db_path=None):
         super().__init__(parent)
+        self.message = message
+        self.db_path = db_path
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
         self.setStyleSheet("""
@@ -66,7 +82,7 @@ class AegisPrimeSupervisor(QDialog):
         label.setWordWrap(True)
         layout.addWidget(label)
         self.setLayout(layout)
-        
+
         if parent:
             p_geo = parent.geometry()
             popup_w = min(360, max(260, int(p_geo.width() * 0.38)))
@@ -80,10 +96,25 @@ class AegisPrimeSupervisor(QDialog):
         else:
             self.resize(320, 90)
 
+        if db_path:
+            self._save_to_database()
+
         QTimer.singleShot(8000, self.close)
 
     def mousePressEvent(self, event):
-        self.close() 
+        self.close()
+
+    def _save_to_database(self):
+        from datetime import datetime
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO aegis_logs (timestamp, message) VALUES (?, ?)",
+                          (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), self.message))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Error saving Aegis log: {e}") 
 
 class DashboardApp(QDialog):
     def __init__(self):
@@ -101,9 +132,19 @@ class DashboardApp(QDialog):
 
         # 2. Config File Path
         self.config_file = os.path.join(BASE_DIR, "config.json")
-        
+        self.db_path = os.path.join(BASE_DIR, "datalog.db")
+        init_aegis_logs_db(self.db_path)
+
         # Load previous calibrations into UI
         self.load_configuration()
+
+        # Load past Aegis logs
+        self.load_aegis_logs()
+
+        # Timer interval for loading fresh logs (every 5 seconds)
+        self.aegis_logs_timer = QTimer(self)
+        self.aegis_logs_timer.timeout.connect(self.load_aegis_logs)
+        self.aegis_logs_timer.start(5000)
 
         # Connect Save Buttons to the save function
         if hasattr(self, 'btn_save_calibration'):
@@ -237,8 +278,38 @@ class DashboardApp(QDialog):
 
     def trigger_aegis_popup(self):
         fact = random.choice(self.ai_facts)
-        self.popup = AegisPrimeSupervisor(self, fact)
+        self.popup = AegisPrimeSupervisor(self, fact, self.db_path)
         self.popup.show()
+
+    def load_aegis_logs(self):
+        """Load past Aegis observations from database and display in table"""
+        if not hasattr(self, 'table_aegis_logs'):
+            return
+
+        try:
+            # Set horizontal header labels
+            self.table_aegis_logs.setHorizontalHeaderLabels(["Timestamp", "Aegis Message"])
+
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT timestamp, message FROM aegis_logs ORDER BY id DESC LIMIT 100")
+            rows = cursor.fetchall()
+            conn.close()
+
+            self.table_aegis_logs.setRowCount(0)
+            for row_data in rows:
+                row_position = self.table_aegis_logs.rowCount()
+                self.table_aegis_logs.insertRow(row_position)
+                self.table_aegis_logs.setItem(row_position, 0, QTableWidgetItem(row_data[0]))
+                self.table_aegis_logs.setItem(row_position, 1, QTableWidgetItem(row_data[1]))
+
+            # Set reasonable column widths
+            self.table_aegis_logs.setColumnWidth(0, 150)  # Timestamp column
+            self.table_aegis_logs.setColumnWidth(1, 800)  # Message column
+
+            self.table_aegis_logs.scrollToBottom()
+        except Exception as e:
+            print(f"Error loading Aegis logs: {e}")
 
     def toggle_simulation_mode(self, checked):
         self.SIMULATION_MODE = checked

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis Prime Flow Computer Dashboard</title>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+            color: #c9d1d9;
+            min-height: 100vh;
+        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .tabs { display: flex; background: #010409; border-radius: 8px; margin-bottom: 20px; }
+        .tab { padding: 12px 24px; cursor: pointer; transition: all 0.3s; }
+        .tab:hover { background: #30363d; }
+        .tab.active { background: #8957e5; color: white; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .card { background: #010409; border-radius: 8px; padding: 20px; border: 1px solid #30363d; }
+        .stat { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #30363d; }
+        .stat:last-child { border-bottom: none; }
+        .stat-value { font-size: 28px; font-weight: bold; color: #23d18b; }
+        .stat-label { color: #8b949e; font-size: 12px; }
+        .unit { font-size: 14px; color: #58a6ff; }
+        .logs-container { max-height: 400px; overflow-y: auto; }
+        .log-entry { padding: 12px; border-left: 3px solid #8957e5; margin-bottom: 10px; background: rgba(137, 87, 229, 0.1); }
+        .timestamp { font-size: 12px; color: #8b949e; margin-bottom: 4px; }
+        .message { color: #c9d1d9; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #161b22; padding: 12px; text-align: left; color: #8b949e; }
+        td { padding: 12px; border-bottom: 1px solid #30363d; }
+        tr:hover { background: #161b22; }
+        .chart-container { position: relative; height: 300px; }
+        #offline-badge { position: fixed; top: 20px; right: 20px; background: #f85149; padding: 8px 16px; border-radius: 20px; z-index: 1000; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Aegis Prime Flow Computer Dashboard</h1>
+
+        <div id="offline-badge" style="display: none;">⚠️ Offline - Buffering Data</div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('main')">Main Dashboard</div>
+            <div class="tab" onclick="showTab('trends')">Trends</div>
+            <div class="tab" onclick="showTab('data')">Data Logger</div>
+            <div class="tab" onclick="showTab('calibration')">Calibrations</div>
+            <div class="tab" onclick="showTab('aegis')">Aegis Logs</div>
+            <div class="tab" onclick="showTab('flow')">Flow Data</div>
+        </div>
+
+        <div id="main" class="tab-content">
+            <div class="grid">
+                <div class="card">
+                    <div class="stat">
+                        <div>
+                            <div class="stat-label">Flow Rate</div>
+                            <div class="stat-value" id="flow-rate">--</div>
+                        </div>
+                        <div class="unit">m³/h</div>
+                    </div>
+                    <div class="stat">
+                        <div>
+                            <div class="stat-label">Totalizer</div>
+                            <div class="stat-value" id="totalizer">--</div>
+                        </div>
+                        <div class="unit">m³</div>
+                    </div>
+                    <div class="stat">
+                        <div>
+                            <div class="stat-label">Temperature</div>
+                            <div class="stat-value" id="temperature">--</div>
+                        </div>
+                        <div class="unit">°C</div>
+                    </div>
+                    <div class="stat">
+                        <div>
+                            <div class="stat-label">Pressure</div>
+                            <div class="stat-value" id="pressure">--</div>
+                        </div>
+                        <div class="unit">bar</div>
+                    </div>
+                    <div class="stat">
+                        <div>
+                            <div class="stat-label">Diff Pressure</div>
+                            <div class="stat-value" id="dp">--</div>
+                        </div>
+                        <div class="unit">mmH₂O</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3 style="margin-bottom: 15px; color: #8b949e;">Flow Rate Chart</h3>
+                    <div class="chart-container">
+                        <canvas id="flow-chart-main"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="trends" class="tab-content" style="display: none;">
+            <h2>Flow Trends</h2>
+            <div class="grid">
+                <div class="chart-container">
+                    <h3 style="color: #23d18b; margin-bottom: 10px;">Flow Rate</h3>
+                    <canvas id="flow-chart-trends"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3 style="color: #0ea5e9; margin-bottom: 10px;">Pressure</h3>
+                    <canvas id="pressure-chart-trends"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3 style="color: #ff7b72; margin-bottom: 10px;">Temperature</h3>
+                    <canvas id="temp-chart-trends"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3 style="color: #8957e5; margin-bottom: 10px;">Differential Pressure</h3>
+                    <canvas id="dp-chart-trends"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div id="data" class="tab-content" style="display: none;">
+            <h2>Data Logger</h2>
+            <div class="chart-container" style="height: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Pressure (bar)</th>
+                            <th>Flow Rate (m³/h)</th>
+                            <th>Temperature (°C)</th>
+                            <th>DP (mmH₂O)</th>
+                            <th>Totalizer (m³)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-table">
+                        <tr><td colspan="6">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="calibration" class="tab-content" style="display: none;">
+            <h2>Calibrations</h2>
+            <div class="grid">
+                <div class="card">
+                    <h3>Transmitter Settings</h3>
+                    <div class="stat">
+                        <div>
+                            <div class="stat-label">DP Min (mmH2O)</div>
+                            <div class="stat-value" id="dp-min">--</div>
+                        </div>
+                        <div class="unit"></div>
+                    </div>
+                    <div class="stat">
+                        <div>
+                            <div class="stat-label">DP Max (mmH2O)</div>
+                            <div class="stat-value" id="dp-max">--</div>
+                        </div>
+                        <div class="unit"></div>
+                    </div>
+                    <div class="stat">
+                        <div>
+                            <div class="stat-label">Pressure Min (bar)</div>
+                            <div class="stat-value" id="press-min">--</div>
+                        </div>
+                        <div class="unit"></div>
+                    </div>
+                    <div class="stat">
+                        <div>
+                            <div class="stat-label">Pressure Max (bar)</div>
+                            <div class="stat-value" id="press-max">--</div>
+                        </div>
+                        <div class="unit"></div>
+                    </div>
+                    <div class="stat">
+                        <div>
+                            <div class="stat-label">Temperature Min (°C)</div>
+                            <div class="stat-value" id="temp-min">--</div>
+                        </div>
+                        <div class="unit"></div>
+                    </div>
+                    <div class="stat">
+                        <div>
+                            <div class="stat-label">Temperature Max (°C)</div>
+                            <div class="stat-value" id="temp-max">--</div>
+                        </div>
+                        <div class="unit"></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Orifice Settings</h3>
+                    <div class="stat">
+                        <div>
+                            <div class="stat-label">Pipe Diameter (mm)</div>
+                            <div class="stat-value" id="pipe-dia">--</div>
+                        </div>
+                        <div class="unit">mm</div>
+                    </div>
+                    <div class="stat">
+                        <div>
+                            <div class="stat-label">Orifice Diameter (mm)</div>
+                            <div class="stat-value" id="orifice-dia">--</div>
+                        </div>
+                        <div class="unit">mm</div>
+                    </div>
+                    <div class="stat">
+                        <div>
+                            <div class="stat-label">Fluid Density</div>
+                            <div class="stat-value" id="fluid-density">--</div>
+                        </div>
+                        <div class="unit">kg/m³</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="aegis" class="tab-content" style="display: none;">
+            <h2>Aegis AI Observations</h2>
+            <div class="logs-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Message</th>
+                        </tr>
+                    </thead>
+                    <tbody id="aegis-logs">
+                        <tr><td colspan="2">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="flow" class="tab-content" style="display: none;">
+            <h2>Flow Data History</h2>
+            <div class="chart-container">
+                <canvas id="flow-chart"></canvas>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Pressure (bar)</th>
+                        <th>Flow Rate (m³/h)</th>
+                        <th>Temperature (°C)</th>
+                        <th>DP (mmH₂O)</th>
+                        <th>Totalizer (m³)</th>
+                    </tr>
+                </thead>
+                <tbody id="flow-data">
+                    <tr><td colspan="6">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
