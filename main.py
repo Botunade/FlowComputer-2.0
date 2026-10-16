@@ -3,6 +3,7 @@ import random
 import math
 import json
 import os
+import time
 from PySide6.QtWidgets import (
     QApplication, QDialog, QMessageBox, QLabel, QVBoxLayout,
     QDoubleSpinBox, QLCDNumber, QTableWidgetItem, QWidget
@@ -13,6 +14,16 @@ import pyqtgraph as pg
 import sqlite3
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Hardware imports for ADS1115 ADC on Raspberry Pi
+try:
+    import board
+    import busio
+    import adafruit_ads1x15.ads1115 as ADS
+    from adafruit_ads1x15.analog_in import AnalogIn
+    HARDWARE_AVAILABLE = True
+except (ImportError, NotImplementedError):
+    HARDWARE_AVAILABLE = False
 
 class UiLoader(QUiLoader):
     def __init__(self, base_instance):
@@ -55,15 +66,6 @@ def init_aegis_logs_db(db_path):
     ''')
     conn.commit()
     conn.close()
-
-try:
-    import board
-    import busio
-    import adafruit_ads1x15.ads1115 as ADS
-    from adafruit_ads1x15.analog_in import AnalogIn
-    HARDWARE_AVAILABLE = True
-except (ImportError, NotImplementedError):
-    HARDWARE_AVAILABLE = False
 
 class AegisPrimeSupervisor(QDialog):
     def __init__(self, parent, message, db_path=None):
@@ -171,17 +173,51 @@ class DashboardApp(QDialog):
 
         self.setup_charts_dynamically()
 
+        # ============================================
+        # Hardware sensor initialization for Raspberry Pi
+        # ============================================
+        # Initialize I2C bus and ADS1115 ADC
+        self.dp_sensor = None      # A0 - Differential Pressure (mmH2O)
+        self.sp_sensor = None      # A1 - Static Pressure (bar)
+        self.temp_sensor = None    # A2 - Temperature transmitter
         self.ads = None
-        self.chan_pressure = None
-        self.chan_dp = None
+
         if HARDWARE_AVAILABLE:
             try:
-                i2c = busio.I2C(board.SCL, board.SDA)
-                self.ads = ADS.ADS1115(i2c)
-                self.chan_pressure = AnalogIn(self.ads, ADS.P0)
-                self.chan_dp = AnalogIn(self.ads, ADS.P1)
+                import time
+                self.i2c = busio.I2C(board.SCL, board.SDA)
+
+                # Scan for I2C devices to detect ADS1115
+                print("Scanning I2C bus for ADS1115...")
+                devices = []
+                for _ in range(3):
+                    devices = [hex(x) for x in self.i2c.scan()]
+                    time.sleep(0.1)
+
+                if devices:
+                    print(f"Found I2C devices: {devices}")
+                    if "0x48" in devices or "0x49" in devices or "0x4a" in devices or "0x4b" in devices:
+                        # Try default address 0x48 first
+                        for addr in [0x48, 0x49, 0x4a, 0x4b]:
+                            try:
+                                self.ads = ADS.ADS1115(self.i2c, address=addr)
+                                print(f"Connected to ADS1115 at address 0x{addr:02x}")
+                                break
+                            except Exception:
+                                continue
+
+                if self.ads is None:
+                    print("Could not find ADS1115, falling back to simulated hardware")
+                    HARDWARE_AVAILABLE = False
+                else:
+                    # Initialize channels: A0=DP, A1=Static Pressure, A2=Temperature
+                    self.dp_sensor = AnalogIn(self.ads, 0)      # A0 - Differential Pressure
+                    self.sp_sensor = AnalogIn(self.ads, 1)        # A1 - Static Pressure
+                    self.temp_sensor = AnalogIn(self.ads, 2)      # A2 - Temperature
+                    print("ADS1115 channels configured: A0(DP), A1(Pressure), A2(Temp)")
             except Exception as e:
                 print(f"Hardware init warning: {e}")
+                HARDWARE_AVAILABLE = False
 
         if hasattr(self, 'btnSimulationToggle'):
             self.btnSimulationToggle.toggled.connect(self.toggle_simulation_mode)
@@ -205,6 +241,11 @@ class DashboardApp(QDialog):
         self.logger_timer = QTimer(self)
         self.logger_timer.timeout.connect(self.log_data_to_table)
         self.logger_timer.start(10000)
+
+        # Timer for live voltage display updates (non-blocking, 1 second interval)
+        self.sensor_timer = QTimer(self)
+        self.sensor_timer.timeout.connect(self.update_live_values)
+        self.sensor_timer.start(1000)
 
     def load_configuration(self):
         """Loads JSON data and populates the UI spin boxes on startup"""
@@ -313,11 +354,44 @@ class DashboardApp(QDialog):
 
     def toggle_simulation_mode(self, checked):
         self.SIMULATION_MODE = checked
-        self.hardware_fault_acknowledged = False 
+        self.hardware_fault_acknowledged = False
         if checked:
             self.btnSimulationToggle.setText("Simulation Mode: ON")
         else:
             self.btnSimulationToggle.setText("Hardware Mode: ACTIVE")
+
+    def update_live_values(self):
+        """Read live values from ADS1115 ADC and update voltage display labels"""
+        if not HARDWARE_AVAILABLE or self.dp_sensor is None or self.sp_sensor is None or self.temp_sensor is None:
+            return
+
+        try:
+            # Read voltages directly from ADS1115 channels
+            dp_v = self.dp_sensor.voltage      # A0 - Differential Pressure transmitter
+            sp_v = self.sp_sensor.voltage      # A1 - Static Pressure transmitter
+            temp_v = self.temp_sensor.voltage  # A2 - Temperature transmitter
+
+            # Update voltage display labels (if they exist in the UI)
+            if hasattr(self, 'voltage_dp'):
+                self.voltage_dp.setText(f"DP: {dp_v:.3f} V")
+            if hasattr(self, 'voltage_sp'):
+                self.voltage_sp.setText(f"SP: {sp_v:.3f} V")
+            if hasattr(self, 'voltage_temp'):
+                self.voltage_temp.setText(f"Temp: {temp_v:.3f} V")
+
+            # Also update single status label if present
+            if hasattr(self, 'voltage_status'):
+                self.voltage_status.setText(f"A0(DP): {dp_v:.3f}V | A1(SP): {sp_v:.3f}V | A2(T): {temp_v:.3f}V")
+
+            # Log to console for debugging
+            print(f"Live Readings: DP={dp_v:.3f}V | SP={sp_v:.3f}V | Temp={temp_v:.3f}V")
+
+        except OSError as e:
+            print(f"Hardware read error (I2C/ADC): {e}")
+            if hasattr(self, 'voltage_status'):
+                self.voltage_status.setText("Hardware error: check connections")
+        except Exception as e:
+            print(f"Unexpected error reading sensors: {e}")
 
     def scale_4_20ma_to_engineering(self, voltage, unit_type):
         v_min, v_max = 0.48, 2.40
@@ -362,17 +436,26 @@ class DashboardApp(QDialog):
             if random.random() < 0.05:
                 raw_pressure_val += (self.spin_press_max.value() * 0.1) 
         else:
-            if not HARDWARE_AVAILABLE or self.chan_pressure is None or self.chan_dp is None:
+            if not HARDWARE_AVAILABLE or self.dp_sensor is None or self.sp_sensor is None or self.temp_sensor is None:
                 sensor_fault = True
             else:
                 try:
-                    v_press, v_dp = self.chan_pressure.voltage, self.chan_dp.voltage
-                    if v_press < 0.40 or v_dp < 0.40:
+                    v_dp = self.dp_sensor.voltage      # A0 - Differential Pressure
+                    v_press = self.sp_sensor.voltage     # A1 - Static Pressure
+                    v_temp = self.temp_sensor.voltage    # A2 - Temperature
+
+                    # Check for sensor faults (4-20mA loop fault if voltage < 0.4V)
+                    if v_press < 0.40 or v_dp < 0.40 or v_temp < 0.40:
                         sensor_fault = True
                     else:
                         raw_pressure_val = self.scale_4_20ma_to_engineering(v_press, "pressure")
                         raw_dp_val = self.scale_4_20ma_to_engineering(v_dp, "dp")
-                        raw_temp_val = self.scale_4_20ma_to_engineering(1.44, "temp") 
+                        # Convert temperature voltage to actual temperature
+                        # Assuming 4-20mA loop for temperature sensor
+                        temp_span_min = self.spin_temp_min.value()
+                        temp_span_max = self.spin_temp_max.value()
+                        clamped_v = max(0.48, min(v_temp, 2.40))
+                        raw_temp_val = temp_span_min + (clamped_v - 0.48) * (temp_span_max - temp_span_min) / (2.40 - 0.48)
                 except Exception:
                     sensor_fault = True
 
@@ -384,6 +467,12 @@ class DashboardApp(QDialog):
 
         self.filtered_pressure = (self.alpha * raw_pressure_val) + ((1 - self.alpha) * self.filtered_pressure)
         self.filtered_dp = (self.alpha * raw_dp_val) + ((1 - self.alpha) * self.filtered_dp)
+
+        # Convert DP from mmH2O to bars for dual display
+        # 1 bar = 10197.1626 mmH2O (at 4°C), but we'll use ~10000 for simplicity
+        dp_val_mmh2o = self.filtered_dp
+        self.filtered_dp_bar = dp_val_mmh2o / 10000.0
+
         self.current_temp = raw_temp_val
         self.current_flow_m3h = self.calculate_iso5167_flow(self.filtered_dp, self.filtered_pressure, self.current_temp, orifice_diameter_mm)
         
@@ -400,25 +489,37 @@ class DashboardApp(QDialog):
         self.curve_dp.setData(self.xdata, self.ydata_dp)
 
         self.lcd_flow_rate.display(round(self.current_flow_m3h, 2))
+        # Temperature: display in Celsius (label shows °C / °F)
+        # °F = (°C × 9/5) + 32
         self.lcd_temp.display(round(self.current_temp, 1))
+        # Pressure: display in bar (label shows bar / psi)
+        # psi = bar × 14.5038
         self.lcd_pressure.display(round(self.filtered_pressure, 2))
-        self.lcd_dp.display(round(self.filtered_dp, 1))
+        # DP: display in bars (label shows bars / mmH2O)
+        self.lcd_dp.display(round(self.filtered_dp_bar, 4))
+        # Totalizer: display in m³ (label shows m³ / L)
+        # liters = m³ × 1000
         self.lcd_totalizer.display(round(self.totalizer_m3, 2))
 
     def log_data_to_table(self):
         if not hasattr(self, 'tableWidget'): return
-        
+
         timestamp = QDateTime.currentDateTime().toString("yyyy-MM-dd HH:mm:ss")
         row_position = self.tableWidget.rowCount()
         self.tableWidget.insertRow(row_position)
-        
+
+        # Calculate secondary units
+        pressure_psi = self.filtered_pressure * 14.5038
+        temp_f = (self.current_temp * 9/5) + 32
+        totalizer_l = self.totalizer_m3 * 1000
+
         self.tableWidget.setItem(row_position, 0, QTableWidgetItem(timestamp))
-        self.tableWidget.setItem(row_position, 1, QTableWidgetItem(f"{self.filtered_pressure:.2f}"))
+        self.tableWidget.setItem(row_position, 1, QTableWidgetItem(f"{self.filtered_pressure:.2f} / {pressure_psi:.2f}"))
         self.tableWidget.setItem(row_position, 2, QTableWidgetItem(f"{self.current_flow_m3h:.2f}"))
-        self.tableWidget.setItem(row_position, 3, QTableWidgetItem(f"{self.current_temp:.1f}"))
-        self.tableWidget.setItem(row_position, 4, QTableWidgetItem(f"{self.filtered_dp:.1f}"))
-        self.tableWidget.setItem(row_position, 5, QTableWidgetItem(f"{self.totalizer_m3:.2f}"))
-        
+        self.tableWidget.setItem(row_position, 3, QTableWidgetItem(f"{self.current_temp:.1f} / {temp_f:.1f}"))
+        self.tableWidget.setItem(row_position, 4, QTableWidgetItem(f"{self.filtered_dp:.1f} / {self.filtered_dp_bar:.4f}"))
+        self.tableWidget.setItem(row_position, 5, QTableWidgetItem(f"{self.totalizer_m3:.2f} / {totalizer_l:.2f}"))
+
         self.tableWidget.scrollToBottom()
 
 if __name__ == '__main__':
