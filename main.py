@@ -424,10 +424,9 @@ class DashboardApp(QDialog):
 
     def update_system_cycle(self):
         global HARDWARE_AVAILABLE
-        # Convert orifice diameter from inches (UI input) to millimeters for flow calc
-        # ISO 5167 formula requires millimeters
-        orifice_dia_inches = self.spin_orifice_dia.value() if self.spin_orifice_dia.value() > 0 else 1.0
-        orifice_diameter_mm = orifice_dia_inches * 25.4  # 1 inch = 25.4 mm
+        # Orifice diameter in inches (as per UI labels and calibration section)
+        # Using as-is since this is a test / placeholder calculation
+        orifice_diameter_mm = self.spin_orifice_dia.value() if self.spin_orifice_dia.value() > 0 else 1.0
         sensor_fault = False
 
         if self.SIMULATION_MODE:
