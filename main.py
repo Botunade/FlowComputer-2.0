@@ -424,7 +424,10 @@ class DashboardApp(QDialog):
 
     def update_system_cycle(self):
         global HARDWARE_AVAILABLE
-        orifice_diameter_mm = self.spin_orifice_dia.value() if self.spin_orifice_dia.value() > 0 else 50.0
+        # Convert orifice diameter from inches (UI input) to millimeters for flow calc
+        # ISO 5167 formula requires millimeters
+        orifice_dia_inches = self.spin_orifice_dia.value() if self.spin_orifice_dia.value() > 0 else 1.0
+        orifice_diameter_mm = orifice_dia_inches * 25.4  # 1 inch = 25.4 mm
         sensor_fault = False
 
         if self.SIMULATION_MODE:
@@ -448,17 +451,14 @@ class DashboardApp(QDialog):
                     v_temp = self.temp_sensor.voltage    # A2 - Temperature
 
                     # Check for sensor faults (4-20mA loop fault if voltage < 0.4V)
-                    if v_press < 0.40 or v_dp < 0.40 or v_temp < 0.40:
+                    if v_press < 0.48 or v_dp < 0.48 or v_temp < 0.48:
                         sensor_fault = True
                     else:
                         raw_pressure_val = self.scale_4_20ma_to_engineering(v_press, "pressure")
                         raw_dp_val = self.scale_4_20ma_to_engineering(v_dp, "dp")
                         # Convert temperature voltage to actual temperature
-                        # Assuming 4-20mA loop for temperature sensor
-                        temp_span_min = self.spin_temp_min.value()
-                        temp_span_max = self.spin_temp_max.value()
-                        clamped_v = max(0.48, min(v_temp, 2.40))
-                        raw_temp_val = temp_span_min + (clamped_v - 0.48) * (temp_span_max - temp_span_min) / (2.40 - 0.48)
+                        # Using the same scaling function for consistency
+                        raw_temp_val = self.scale_4_20ma_to_engineering(v_temp, "temp")
                 except Exception:
                     sensor_fault = True
 
