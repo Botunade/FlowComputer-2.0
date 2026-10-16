@@ -120,6 +120,7 @@ class AegisPrimeSupervisor(QDialog):
 
 class DashboardApp(QDialog):
     def __init__(self):
+        global HARDWARE_AVAILABLE
         super().__init__()
         # Load dashboard.ui directly into self
         ui_path = os.path.join(BASE_DIR, "dashboard.ui")
@@ -362,6 +363,7 @@ class DashboardApp(QDialog):
 
     def update_live_values(self):
         """Read live values from ADS1115 ADC and update voltage display labels"""
+        global HARDWARE_AVAILABLE
         if not HARDWARE_AVAILABLE or self.dp_sensor is None or self.sp_sensor is None or self.temp_sensor is None:
             return
 
@@ -421,7 +423,8 @@ class DashboardApp(QDialog):
         return k_factor * (orifice_d_mm ** 2) * math.sqrt((dp_mmh2o * pressure_bar) / temp_k)
 
     def update_system_cycle(self):
-        orifice_diameter_mm = self.spin_orifice_dia.value() if self.spin_orifice_dia.value() > 0 else 50.0 
+        global HARDWARE_AVAILABLE
+        orifice_diameter_mm = self.spin_orifice_dia.value() if self.spin_orifice_dia.value() > 0 else 50.0
         sensor_fault = False
 
         if self.SIMULATION_MODE:
