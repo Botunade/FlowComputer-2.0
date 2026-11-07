@@ -34,7 +34,7 @@
        <item row="0" column="2">
         <widget class="QLabel" name="label_2">
          <property name="text">
-          <string>Temperature</string>
+          <string>Temp (°C / °F)</string>
          </property>
         </widget>
        </item>
@@ -47,14 +47,14 @@
        <item row="2" column="0">
         <widget class="QLabel" name="label_3">
          <property name="text">
-          <string>Pressure</string>
+          <string>Pressure (bar / psi)</string>
          </property>
         </widget>
        </item>
        <item row="2" column="2">
         <widget class="QLabel" name="label_4">
          <property name="text">
-          <string>Differential Pressure</string>
+          <string>DP (bars / mmH2O)</string>
          </property>
         </widget>
        </item>
@@ -67,7 +67,7 @@
        <item row="4" column="1">
         <widget class="QLabel" name="label_5">
          <property name="text">
-          <string>Totalizer</string>
+          <string>Totalizer (m³ / L)</string>
          </property>
         </widget>
        </item>
@@ -158,27 +158,27 @@
          </column>
          <column>
           <property name="text">
-           <string>Pressure</string>
+           <string>Pressure (bar / psi)</string>
           </property>
          </column>
          <column>
           <property name="text">
-           <string>Flow rate</string>
+           <string>Flow Rate (m³/h)</string>
           </property>
          </column>
          <column>
           <property name="text">
-           <string>Temperature</string>
+           <string>Temp (°C / °F)</string>
           </property>
          </column>
          <column>
           <property name="text">
-           <string>Differential Pressure</string>
+           <string>DP (mmH2O / bar)</string>
           </property>
          </column>
          <column>
           <property name="text">
-           <string>Totalizer</string>
+           <string>Totalizer (m³ / L)</string>
           </property>
          </column>
         </widget>

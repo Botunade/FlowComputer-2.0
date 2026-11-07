@@ -1,0 +1,28 @@
+{
+  "project_id": "sba-fingerprint",
+  "targets": {
+    "hosting": [
+      "flowcomputer2"
+    ]
+  },
+  "functions": {
+    "source": "functions"
+  },
+  "hosting": {
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "database": {
+    "rules": "firebase.json"
+  }
+}
