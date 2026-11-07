@@ -1,0 +1,3 @@
+PySide6
+pyqtgraph
+adafruit-circuitpython-ads1x15

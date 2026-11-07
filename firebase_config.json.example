@@ -1,0 +1,4 @@
+{
+  "firebase_url": "https://YOUR_PROJECT_ID.firebaseio.com",
+  "firebase_token": "YOUR_DATABASE_SECRET_OR_USER_TOKEN"
+}

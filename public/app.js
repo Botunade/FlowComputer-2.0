@@ -291,11 +291,23 @@ function updateDashboard() {
         const data = snapshot.val();
         if (!data) return;
 
-        document.getElementById('flow-rate').textContent = (data.flow_rate || 0).toFixed(2);
-        document.getElementById('totalizer').textContent = (data.totalizer || 0).toFixed(2);
-        document.getElementById('temperature').textContent = (data.temperature || 0).toFixed(1);
-        document.getElementById('pressure').textContent = (data.pressure || 0).toFixed(2);
-        document.getElementById('dp').textContent = (data.dp || 0).toFixed(1);
+        const flowRate = data.flow_rate || 0;
+        const totalizer = data.totalizer || 0;
+        const temp = data.temperature || 0;
+        const pressure = data.pressure || 0;
+        const dp = data.dp || 0;
+
+        // Convert to secondary units
+        const tempF = (temp * 9/5) + 32;
+        const pressurePsi = pressure * 14.5038;
+        const totalizerL = totalizer * 1000;
+        const dpBar = dp / 10000;
+
+        document.getElementById('flow-rate').textContent = flowRate.toFixed(2);
+        document.getElementById('totalizer').textContent = `${totalizer.toFixed(2)} / ${totalizerL.toFixed(2)}`;
+        document.getElementById('temperature').textContent = `${temp.toFixed(1)} / ${tempF.toFixed(1)}`;
+        document.getElementById('pressure').textContent = `${pressure.toFixed(2)} / ${pressurePsi.toFixed(2)}`;
+        document.getElementById('dp').textContent = `${dp.toFixed(1)} / ${dpBar.toFixed(4)}`;
     });
 }
 

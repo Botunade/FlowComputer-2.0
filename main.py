@@ -182,6 +182,7 @@ class DashboardApp(QDialog):
         self.sp_sensor = None      # A1 - Static Pressure (bar)
         self.temp_sensor = None    # A2 - Temperature transmitter
         self.ads = None
+        self.hardware_connected = False  # Flag to indicate successful hardware init
 
         if HARDWARE_AVAILABLE:
             try:
@@ -215,10 +216,12 @@ class DashboardApp(QDialog):
                     self.dp_sensor = AnalogIn(self.ads, 0)      # A0 - Differential Pressure
                     self.sp_sensor = AnalogIn(self.ads, 1)        # A1 - Static Pressure
                     self.temp_sensor = AnalogIn(self.ads, 2)      # A2 - Temperature
+                    self.hardware_connected = True
                     print("ADS1115 channels configured: A0(DP), A1(Pressure), A2(Temp)")
             except Exception as e:
                 print(f"Hardware init warning: {e}")
                 HARDWARE_AVAILABLE = False
+                self.hardware_connected = False
 
         if hasattr(self, 'btnSimulationToggle'):
             self.btnSimulationToggle.toggled.connect(self.toggle_simulation_mode)
@@ -364,36 +367,33 @@ class DashboardApp(QDialog):
     def update_live_values(self):
         """Read live values from ADS1115 ADC and update voltage display labels"""
         global HARDWARE_AVAILABLE
-        if not HARDWARE_AVAILABLE or self.dp_sensor is None or self.sp_sensor is None or self.temp_sensor is None:
-            return
-
-        try:
-            # Read voltages directly from ADS1115 channels
+        if not self.hardware_connected:
+            # Simulated data (no hardware detected)
+            import random
+            dp_v = random.uniform(0.48, 2.40)
+            sp_v = random.uniform(0.48, 2.40)
+            temp_v = random.uniform(0.48, 2.40)
+        else:
+            # Read actual hardware values
             dp_v = self.dp_sensor.voltage      # A0 - Differential Pressure transmitter
             sp_v = self.sp_sensor.voltage      # A1 - Static Pressure transmitter
             temp_v = self.temp_sensor.voltage  # A2 - Temperature transmitter
 
-            # Update voltage display labels (if they exist in the UI)
-            if hasattr(self, 'voltage_dp'):
-                self.voltage_dp.setText(f"DP: {dp_v:.3f} V")
-            if hasattr(self, 'voltage_sp'):
-                self.voltage_sp.setText(f"SP: {sp_v:.3f} V")
-            if hasattr(self, 'voltage_temp'):
-                self.voltage_temp.setText(f"Temp: {temp_v:.3f} V")
+        # Update voltage display labels (if they exist in the UI)
+        if hasattr(self, 'voltage_dp'):
+            self.voltage_dp.setText(f"DP: {dp_v:.3f} V")
+        if hasattr(self, 'voltage_sp'):
+            self.voltage_sp.setText(f"SP: {sp_v:.3f} V")
+        if hasattr(self, 'voltage_temp'):
+            self.voltage_temp.setText(f"Temp: {temp_v:.3f} V")
 
-            # Also update single status label if present
-            if hasattr(self, 'voltage_status'):
-                self.voltage_status.setText(f"A0(DP): {dp_v:.3f}V | A1(SP): {sp_v:.3f}V | A2(T): {temp_v:.3f}V")
+        # Also update single status label if present
+        if hasattr(self, 'voltage_status'):
+            self.voltage_status.setText(f"A0(DP): {dp_v:.3f}V | A1(SP): {sp_v:.3f}V | A2(T): {temp_v:.3f}V")
 
-            # Log to console for debugging
-            print(f"Live Readings: DP={dp_v:.3f}V | SP={sp_v:.3f}V | Temp={temp_v:.3f}V")
+        # Log to console for debugging
+        print(f"Live Readings: DP={dp_v:.3f}V | SP={sp_v:.3f}V | Temp={temp_v:.3f}V")
 
-        except OSError as e:
-            print(f"Hardware read error (I2C/ADC): {e}")
-            if hasattr(self, 'voltage_status'):
-                self.voltage_status.setText("Hardware error: check connections")
-        except Exception as e:
-            print(f"Unexpected error reading sensors: {e}")
 
     def scale_4_20ma_to_engineering(self, voltage, unit_type):
         v_min, v_max = 0.48, 2.40
