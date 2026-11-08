@@ -160,6 +160,15 @@ class DashboardApp(QDialog):
         self.totalizer_m3 = 0.0
         self.current_flow_m3h = 0.0
         self.current_temp = 0.0
+
+        # Cached live voltages and I2C error recovery tracking
+        self.current_v_dp = 1.44
+        self.current_v_press = 1.44
+        self.current_v_temp = 1.44
+        self.last_valid_dp = 1.44
+        self.last_valid_press = 1.44
+        self.last_valid_temp = 1.44
+        self.i2c_error_count = 0
         
         self.max_points = 60
         self.xdata = list(range(-self.max_points, 0))
@@ -364,35 +373,92 @@ class DashboardApp(QDialog):
         else:
             self.btnSimulationToggle.setText("Hardware Mode: ACTIVE")
 
-    def update_live_values(self):
-        """Read live values from ADS1115 ADC and update voltage display labels"""
+    def read_hardware_sensors(self):
+        """
+        Safely reads the 3 analog channels from ADS1115 with retry, settling time,
+        and transient fault tolerance. Prevents OSError: [Errno 5] Input/output error
+        from crashing the application.
+        Returns: (dp_v, sp_v, temp_v, is_valid)
+        """
         global HARDWARE_AVAILABLE
-        if not self.hardware_connected:
-            # Simulated data (no hardware detected)
-            import random
-            dp_v = random.uniform(0.48, 2.40)
-            sp_v = random.uniform(0.48, 2.40)
-            temp_v = random.uniform(0.48, 2.40)
-        else:
-            # Read actual hardware values
-            dp_v = self.dp_sensor.voltage      # A0 - Differential Pressure transmitter
-            sp_v = self.sp_sensor.voltage      # A1 - Static Pressure transmitter
-            temp_v = self.temp_sensor.voltage  # A2 - Temperature transmitter
+        if not HARDWARE_AVAILABLE or not getattr(self, 'hardware_connected', False) or \
+           self.dp_sensor is None or self.sp_sensor is None or self.temp_sensor is None:
+            return 0.0, 0.0, 0.0, False
 
-        # Update voltage display labels (if they exist in the UI)
-        if hasattr(self, 'voltage_dp'):
-            self.voltage_dp.setText(f"DP: {dp_v:.3f} V")
-        if hasattr(self, 'voltage_sp'):
-            self.voltage_sp.setText(f"SP: {sp_v:.3f} V")
-        if hasattr(self, 'voltage_temp'):
-            self.voltage_temp.setText(f"Temp: {temp_v:.3f} V")
+        for attempt in range(3):
+            try:
+                # Read voltages with small settling delay between channel conversions
+                dp_v = float(self.dp_sensor.voltage)
+                time.sleep(0.005)
+                sp_v = float(self.sp_sensor.voltage)
+                time.sleep(0.005)
+                temp_v = float(self.temp_sensor.voltage)
 
-        # Also update single status label if present
-        if hasattr(self, 'voltage_status'):
-            self.voltage_status.setText(f"A0(DP): {dp_v:.3f}V | A1(SP): {sp_v:.3f}V | A2(T): {temp_v:.3f}V")
+                # Reset error counter on successful read
+                self.i2c_error_count = 0
+                self.last_valid_dp = dp_v
+                self.last_valid_press = sp_v
+                self.last_valid_temp = temp_v
+                return dp_v, sp_v, temp_v, True
 
-        # Log to console for debugging
-        print(f"Live Readings: DP={dp_v:.3f}V | SP={sp_v:.3f}V | Temp={temp_v:.3f}V")
+            except (OSError, RuntimeError) as e:
+                # Common transient I2C I/O error on Raspberry Pi (Errno 5 / 121)
+                time.sleep(0.02 * (attempt + 1))
+                if attempt == 2:
+                    self.i2c_error_count += 1
+                    print(f"I2C Read Warning on ADS1115: {e} (consecutive failures: {self.i2c_error_count})")
+            except Exception as e:
+                print(f"Unexpected ADC read error: {e}")
+                self.i2c_error_count += 1
+                return 0.0, 0.0, 0.0, False
+
+        # If a transient glitch occurs (<= 3 consecutive cycles), hold last known good values
+        if self.i2c_error_count <= 3 and hasattr(self, 'last_valid_dp'):
+            return self.last_valid_dp, self.last_valid_press, self.last_valid_temp, True
+
+        return 0.0, 0.0, 0.0, False
+
+    def update_live_values(self):
+        """Update live voltage display labels safely without colliding on the I2C bus"""
+        try:
+            if self.SIMULATION_MODE or not getattr(self, 'hardware_connected', False):
+                dp_v = getattr(self, 'current_v_dp', 1.44)
+                sp_v = getattr(self, 'current_v_press', 1.44)
+                temp_v = getattr(self, 'current_v_temp', 1.44)
+                mode_prefix = "[SIM]"
+            else:
+                # In hardware mode, use voltages already sampled by update_system_cycle
+                dp_v = getattr(self, 'current_v_dp', None)
+                sp_v = getattr(self, 'current_v_press', None)
+                temp_v = getattr(self, 'current_v_temp', None)
+
+                # Fallback read only if not yet sampled
+                if dp_v is None or sp_v is None or temp_v is None:
+                    dp_v, sp_v, temp_v, ok = self.read_hardware_sensors()
+                    if not ok:
+                        if hasattr(self, 'voltage_status'):
+                            self.voltage_status.setText("Hardware Alert: I2C I/O failure")
+                        return
+
+                mode_prefix = "[HW]"
+
+            # Update voltage display labels (if they exist in the UI)
+            if hasattr(self, 'voltage_dp'):
+                self.voltage_dp.setText(f"DP: {dp_v:.3f} V")
+            if hasattr(self, 'voltage_sp'):
+                self.voltage_sp.setText(f"SP: {sp_v:.3f} V")
+            if hasattr(self, 'voltage_temp'):
+                self.voltage_temp.setText(f"Temp: {temp_v:.3f} V")
+
+            # Also update single status label if present
+            if hasattr(self, 'voltage_status'):
+                self.voltage_status.setText(f"{mode_prefix} A0(DP): {dp_v:.3f}V | A1(SP): {sp_v:.3f}V | A2(T): {temp_v:.3f}V")
+
+            # Log to console for debugging
+            print(f"Live Readings: {mode_prefix} DP={dp_v:.3f}V | SP={sp_v:.3f}V | Temp={temp_v:.3f}V")
+
+        except Exception as e:
+            print(f"Error in update_live_values: {e}")
 
 
     def scale_4_20ma_to_engineering(self, voltage, unit_type):
@@ -433,39 +499,38 @@ class DashboardApp(QDialog):
             sim_v_press = 1.44 + random.uniform(-0.02, 0.02)
             sim_v_dp = 1.44 + random.uniform(-0.05, 0.05)
             sim_v_temp = 1.44 + random.uniform(-0.01, 0.01)
-            
+
+            self.current_v_dp = sim_v_dp
+            self.current_v_press = sim_v_press
+            self.current_v_temp = sim_v_temp
+
             raw_pressure_val = self.scale_4_20ma_to_engineering(sim_v_press, "pressure")
             raw_dp_val = self.scale_4_20ma_to_engineering(sim_v_dp, "dp")
             raw_temp_val = self.scale_4_20ma_to_engineering(sim_v_temp, "temp")
-            
+
             if random.random() < 0.05:
-                raw_pressure_val += (self.spin_press_max.value() * 0.1) 
+                raw_pressure_val += (self.spin_press_max.value() * 0.1)
         else:
-            if not HARDWARE_AVAILABLE or self.dp_sensor is None or self.sp_sensor is None or self.temp_sensor is None:
+            dp_v, sp_v, temp_v, ok = self.read_hardware_sensors()
+            if not ok or dp_v < 0.40 or sp_v < 0.40 or temp_v < 0.40:
                 sensor_fault = True
             else:
-                try:
-                    v_dp = self.dp_sensor.voltage      # A0 - Differential Pressure
-                    v_press = self.sp_sensor.voltage     # A1 - Static Pressure
-                    v_temp = self.temp_sensor.voltage    # A2 - Temperature
+                self.current_v_dp = dp_v
+                self.current_v_press = sp_v
+                self.current_v_temp = temp_v
 
-                    # Check for sensor faults (4-20mA loop fault if voltage < 0.4V)
-                    if v_press < 0.48 or v_dp < 0.48 or v_temp < 0.48:
-                        sensor_fault = True
-                    else:
-                        raw_pressure_val = self.scale_4_20ma_to_engineering(v_press, "pressure")
-                        raw_dp_val = self.scale_4_20ma_to_engineering(v_dp, "dp")
-                        # Convert temperature voltage to actual temperature
-                        # Using the same scaling function for consistency
-                        raw_temp_val = self.scale_4_20ma_to_engineering(v_temp, "temp")
-                except Exception:
-                    sensor_fault = True
+                raw_pressure_val = self.scale_4_20ma_to_engineering(sp_v, "pressure")
+                raw_dp_val = self.scale_4_20ma_to_engineering(dp_v, "dp")
+                raw_temp_val = self.scale_4_20ma_to_engineering(temp_v, "temp")
 
             if sensor_fault:
                 raw_pressure_val, raw_dp_val, raw_temp_val = 0.0, 0.0, 0.0
                 if not self.hardware_fault_acknowledged:
                     self.hardware_fault_acknowledged = True
-                    QMessageBox.critical(self, "Hardware Alert", "4-20mA loop fault detected!\nSwitch to Simulation Mode to refresh.")
+                    QMessageBox.warning(self, "Hardware Alert", "4-20mA loop fault or I2C communication error detected!\nSwitch to Simulation Mode or check sensor wiring.")
+
+        # Sync live voltage display labels with the latest voltages
+        self.update_live_values()
 
         self.filtered_pressure = (self.alpha * raw_pressure_val) + ((1 - self.alpha) * self.filtered_pressure)
         self.filtered_dp = (self.alpha * raw_dp_val) + ((1 - self.alpha) * self.filtered_dp)
