@@ -260,6 +260,11 @@ class DashboardApp(QDialog):
         self.sensor_timer.timeout.connect(self.update_live_values)
         self.sensor_timer.start(1000)
 
+        # Hardware health check timer (checks every 30 seconds for auto-reconnect)
+        self.hardware_health_timer = QTimer(self)
+        self.hardware_health_timer.timeout.connect(self.check_hardware_connection)
+        self.hardware_health_timer.start(30000)  # Check every 30 seconds
+
     def load_configuration(self):
         """Loads JSON data and populates the UI spin boxes on startup"""
         if os.path.exists(self.config_file):
@@ -459,6 +464,45 @@ class DashboardApp(QDialog):
 
         except Exception as e:
             print(f"Error in update_live_values: {e}")
+
+    def check_hardware_connection(self):
+        """Periodic health check - attempts to re-establish ADS1115 connection"""
+        global HARDWARE_AVAILABLE
+
+        if self.hardware_connected:
+            return  # Already connected, no need to check
+
+        print("Health check: Attempting to reconnect to ADS1115...")
+        try:
+            # Try to scan I2C bus
+            devices = [hex(x) for x in self.i2c.scan()]
+            if "0x48" in devices or "0x49" in devices or "0x4a" in devices or "0x4b" in devices:
+                for addr in [0x48, 0x49, 0x4a, 0x4b]:
+                    try:
+                        self.ads = ADS.ADS1115(self.i2c, address=addr)
+                        print(f"Reconnected to ADS1115 at address 0x{addr:02x}")
+                        break
+                    except Exception:
+                        continue
+
+                if self.ads is not None:
+                    # Re-initialize channels
+                    self.dp_sensor = AnalogIn(self.ads, 0)
+                    self.sp_sensor = AnalogIn(self.ads, 1)
+                    self.temp_sensor = AnalogIn(self.ads, 2)
+                    self.hardware_connected = True
+                    HARDWARE_AVAILABLE = True
+                    print("ADS1115 reconnected successfully - switched to Hardware Mode")
+                    if hasattr(self, 'voltage_status'):
+                        self.voltage_status.setText("Hardware reconnected!")
+                    return
+
+        except Exception as e:
+            pass  # Still not available, will retry on next health check
+
+        # Still not connected
+        if hasattr(self, 'voltage_status'):
+            self.voltage_status.setText("Waiting for hardware...")
 
 
     def scale_4_20ma_to_engineering(self, voltage, unit_type):
