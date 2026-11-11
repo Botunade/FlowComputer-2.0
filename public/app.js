@@ -319,33 +319,30 @@ function renderLCDDisplays() {
     const elFlow = document.getElementById("lcd_flow_rate");
     if (elFlow) elFlow.textContent = currentFlow.toFixed(2);
 
-    // Temperature (Dual: °C and °F + sensed voltage)
+    // Temperature (Dual: °C and °F)
     const elTemp = document.getElementById("lcd_temp");
     const elTempSub = document.getElementById("lcd_temp_sub");
     if (elTemp) elTemp.textContent = currentTemp.toFixed(1);
     if (elTempSub) {
         const tempF = (currentTemp * 9 / 5) + 32;
-        const voltStr = currentVoltages ? ` | A2: ${currentVoltages.temp.toFixed(3)}V` : '';
-        elTempSub.textContent = `${tempF.toFixed(1)} °F${voltStr}`;
+        elTempSub.textContent = `${tempF.toFixed(1)} °F`;
     }
 
-    // Pressure (Dual: bar and psi + sensed voltage)
+    // Pressure (Dual: bar and psi)
     const elPress = document.getElementById("lcd_pressure");
     const elPressSub = document.getElementById("lcd_pressure_sub");
     if (elPress) elPress.textContent = filteredPressure.toFixed(2);
     if (elPressSub) {
         const pressPsi = filteredPressure * 14.5038;
-        const voltStr = currentVoltages ? ` | A1: ${currentVoltages.sp.toFixed(3)}V` : '';
-        elPressSub.textContent = `${pressPsi.toFixed(2)} psi${voltStr}`;
+        elPressSub.textContent = `${pressPsi.toFixed(2)} psi`;
     }
 
-    // Differential Pressure (Dual: bar and mmH2O + sensed voltage)
+    // Differential Pressure (Dual: bar and mmH2O)
     const elDP = document.getElementById("lcd_dp");
     const elDPSub = document.getElementById("lcd_dp_sub");
     if (elDP) elDP.textContent = currentDPBar.toFixed(4);
     if (elDPSub) {
-        const voltStr = currentVoltages ? ` | A0: ${currentVoltages.dp.toFixed(3)}V` : '';
-        elDPSub.textContent = `${filteredDP.toFixed(1)} mmH2O${voltStr}`;
+        elDPSub.textContent = `${filteredDP.toFixed(1)} mmH2O`;
     }
 
     // Totalizer (Dual: m³ and Liters)
@@ -547,7 +544,7 @@ function initFirebaseListeners() {
                 const text = document.getElementById("sync-status-text");
                 if (pill && text) {
                     pill.className = "status-pill online";
-                    text.textContent = "⚡ ADS1115 Permissive: HARDWARE CONNECTED";
+                    text.textContent = "Hardware Connected";
                 }
             }
             if (val.voltages) {
@@ -562,10 +559,9 @@ function initFirebaseListeners() {
                 currentDPBar = currentDP / 10000.0;
                 totalizerM3 = val.totalizer || totalizerM3;
 
-                // Update simulation button label with live voltages
                 const btn = document.getElementById("btnSimulationToggle");
-                if (btn && val.voltages) {
-                    btn.innerHTML = `<span>⚡</span> HW Active | A0:${val.voltages.dp.toFixed(2)}V A1:${val.voltages.sp.toFixed(2)}V A2:${val.voltages.temp.toFixed(2)}V`;
+                if (btn) {
+                    btn.innerHTML = `<span>⚡</span> Hardware Mode : ACTIVE`;
                 }
 
                 renderLCDDisplays();

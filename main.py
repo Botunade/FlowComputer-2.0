@@ -489,19 +489,21 @@ class DashboardApp(QDialog):
     def update_live_values(self):
         """Update live voltage display labels safely without colliding on the I2C bus"""
         try:
+            # Ensure labels always show clean engineering units without raw voltages
+            if hasattr(self, 'label'): self.label.setText("Flow Rate")
+            if hasattr(self, 'label_2'): self.label_2.setText("Temp (°C / °F)")
+            if hasattr(self, 'label_3'): self.label_3.setText("Pressure (bar / psi)")
+            if hasattr(self, 'label_4'): self.label_4.setText("DP (bars / mmH2O)")
+
             if self.SIMULATION_MODE or not getattr(self, 'hardware_connected', False):
                 dp_v = getattr(self, 'current_v_dp', 1.44)
                 sp_v = getattr(self, 'current_v_press', 1.44)
                 temp_v = getattr(self, 'current_v_temp', 1.44)
                 mode_prefix = "[SIM]"
 
-                # Reset labels to standard names in Simulation Mode
-                if hasattr(self, 'label'): self.label.setText("Flow Rate")
-                if hasattr(self, 'label_2'): self.label_2.setText("Temp (°C / °F)")
-                if hasattr(self, 'label_3'): self.label_3.setText("Pressure (bar / psi)")
-                if hasattr(self, 'label_4'): self.label_4.setText("DP (bars / mmH2O)")
                 if hasattr(self, 'btnSimulationToggle'):
                     self.btnSimulationToggle.setText("Simulation Mode : ON")
+                self.setWindowTitle("Flow Computer 2.0 - Aegis Prime Industrial Dashboard [Simulation Mode]")
             else:
                 # In hardware mode, use voltages already sampled by update_system_cycle
                 dp_v = getattr(self, 'current_v_dp', None)
@@ -518,19 +520,10 @@ class DashboardApp(QDialog):
 
                 mode_prefix = "[HW]"
 
-                # Voltage sensing is active -> Display live sensed voltages directly on the UI labels
-                if hasattr(self, 'label_3'):
-                    self.label_3.setText(f"Pressure (bar / psi)  [{sp_v:.3f} V]")
-                if hasattr(self, 'label_4'):
-                    self.label_4.setText(f"DP (bars / mmH2O)  [{dp_v:.3f} V]")
-                if hasattr(self, 'label_2'):
-                    self.label_2.setText(f"Temp (°C / °F)  [{temp_v:.3f} V]")
-                if hasattr(self, 'label'):
-                    self.label.setText("Flow Rate  [Sensing Active]")
                 if hasattr(self, 'btnSimulationToggle'):
-                    self.btnSimulationToggle.setText(f"⚡ HW Active | A0:{dp_v:.2f}V A1:{sp_v:.2f}V A2:{temp_v:.2f}V")
+                    self.btnSimulationToggle.setText("⚡ Hardware Mode : ACTIVE")
 
-                self.setWindowTitle(f"Flow Computer 2.0 | ADS1115 Permissive: CONNECTED | Sensing: DP={dp_v:.3f}V, SP={sp_v:.3f}V, Temp={temp_v:.3f}V")
+                self.setWindowTitle("Flow Computer 2.0 - Aegis Prime Industrial Dashboard [Hardware Connected]")
 
             # Update dedicated voltage labels (if present in custom views)
             if hasattr(self, 'voltage_dp'):
