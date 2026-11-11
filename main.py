@@ -133,7 +133,16 @@ class AegisPrimeSupervisor(QDialog):
             conn.commit()
             conn.close()
         except Exception as e:
-            print(f"Error saving Aegis log: {e}") 
+            print(f"Error saving Aegis log: {e}")
+
+        # Also push to Firebase for real-time web mirroring
+        if FIREBASE_SYNC_AVAILABLE:
+            try:
+                sync = get_sync_instance(self.db_path)
+                if sync:
+                    sync.log_aegis_message(self.message)
+            except Exception:
+                pass 
 
 class DashboardApp(QDialog):
     def __init__(self):
@@ -741,6 +750,20 @@ class DashboardApp(QDialog):
         self.tableWidget.setItem(row_position, 3, QTableWidgetItem(f"{self.current_temp:.1f} / {temp_f:.1f}"))
         self.tableWidget.setItem(row_position, 4, QTableWidgetItem(f"{self.filtered_dp:.1f} / {self.filtered_dp_bar:.4f}"))
         self.tableWidget.setItem(row_position, 5, QTableWidgetItem(f"{self.totalizer_m3:.2f} / {totalizer_l:.2f}"))
+
+        # Sync logged row to Firebase so website Data Logger mirrors dashboard
+        if getattr(self, 'firebase_sync', None) and getattr(self.firebase_sync, 'is_connected', False):
+            try:
+                self.firebase_sync.log_flow_data({
+                    'timestamp': timestamp,
+                    'pressure': round(self.filtered_pressure, 2),
+                    'flow_rate': round(self.current_flow_m3h, 2),
+                    'temperature': round(self.current_temp, 1),
+                    'dp': round(self.filtered_dp, 1),
+                    'totalizer': round(self.totalizer_m3, 2)
+                })
+            except Exception:
+                pass
 
         self.tableWidget.scrollToBottom()
 

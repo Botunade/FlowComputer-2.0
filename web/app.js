@@ -1,20 +1,20 @@
 // ========================================================
 // Flow Computer 2.0 - Web Dashboard Controller
-// Mirrors dashboard.ui and main.py
+// Mirrors dashboard.ui and main.py in real-time
 // ========================================================
 
 const firebaseConfig = {
     apiKey: "AIzaSyCEMeaWLbxkIMcJtXBUPmuzh8gDufSZUFU",
     authDomain: "flowcomputer-fc428.firebaseapp.com",
-    databaseURL: "https://flowcomputer-fc428.firebaseio.com",
+    databaseURL: "https://flowcomputer-fc428-default-rtdb.firebaseio.com",
     projectId: "flowcomputer-fc428",
     storageBucket: "flowcomputer-fc428.firebasestorage.app",
     messagingSenderId: "468250150999",
-    appId: "1:4682501509d959ab75bb12",
+    appId: "1:468250150999:web:a78d2e7b09d959ab75bb12",
     measurementId: "G-NTB5V1J7B6"
 };
 
-// Initialize Firebase if library available
+// Initialize Firebase Realtime Database
 let database = null;
 let isFirebaseConnected = false;
 try {
@@ -38,10 +38,10 @@ function updateConnectionStatus(connected) {
     if (!pill || !text) return;
     if (connected) {
         pill.className = "status-pill online";
-        text.textContent = "Hardware Cloud Synced";
+        text.textContent = "Dashboard Cloud Synced";
     } else {
         pill.className = "status-pill offline";
-        text.textContent = "Local Client / Sim Mode";
+        text.textContent = "Connecting to Dashboard...";
     }
 }
 
@@ -55,20 +55,22 @@ setInterval(() => {
 }, 1000);
 
 // ========================================================
-// Application State & Parameters (ISO 5167)
+// Application State & Telemetry
 // ========================================================
-let simulationMode = true;
-let currentFlow = 0.0;
-let currentPressure = 1.44;
-let currentTemp = 25.0;
-let currentDP = 14.4; // mmH2O
-let currentDPBar = 0.0014;
-let totalizerM3 = 0.0;
-let currentVoltages = null;
+let isDashboardConnected = false;
+let lastTelemetryTime = 0;
+let simulationMode = false;
 
-// Filter coefficients
-let filteredPressure = 1.44;
-let filteredDP = 14.4;
+let currentFlow = 0.0;
+let currentPressure = 0.0;
+let currentTemp = 0.0;
+let currentDP = 0.0; // mmH2O
+let currentDPBar = 0.0;
+let totalizerM3 = 0.0;
+
+// Filter coefficients for fallback
+let filteredPressure = 0.0;
+let filteredDP = 0.0;
 const alpha = 0.25;
 
 // Calibration parameters
@@ -100,7 +102,6 @@ function switchMainTab(tabId, element) {
     const target = document.getElementById(tabId);
     if (target) target.classList.add('active');
 
-    // Resize chart if switching to Trends tab
     if (tabId === 'Trends' && trendChart) {
         setTimeout(() => trendChart.resize(), 50);
     }
@@ -137,7 +138,7 @@ function toggleSimulationMode() {
     } else {
         btn.classList.remove("active");
         btn.innerHTML = "<span>⚡</span> Hardware Mode : ACTIVE";
-        showToast("Hardware Telemetry Engaged");
+        showToast("Hardware Mode Engaged");
     }
 }
 
@@ -242,7 +243,7 @@ function pushChartPoint(param, val) {
 }
 
 // ========================================================
-// Calculation Engine (ISO 5167 Placeholder Formula)
+// Calculation Engine (ISO 5167 Formula)
 // ========================================================
 function calculateISO5167Flow(dp_mmh2o, press_bar, temp_c, orifice_d_inch) {
     if (dp_mmh2o <= 0 || press_bar <= 0) return 0.0;
@@ -259,60 +260,57 @@ function scaleVoltage(voltage, v_min, v_max, span_min, span_max) {
 }
 
 // ========================================================
-// Live Update Cycle (Runs every 1000ms, matching main.py)
+// Live Update Cycle
 // ========================================================
 function runSystemCycle() {
-    let rawPressure = 0.0;
-    let rawDP = 0.0;
-    let rawTemp = 25.0;
+    const timeSinceLastSync = Date.now() - lastTelemetryTime;
+    const pill = document.getElementById("sync-status");
+    const text = document.getElementById("sync-status-text");
 
+    // If live dashboard telemetry arrived in the last 4 seconds, use dashboard values directly
+    if (timeSinceLastSync < 4000) {
+        if (pill && text) {
+            pill.className = "status-pill online";
+            text.textContent = "⚡ Dashboard Synced (Live)";
+        }
+        return;
+    }
+
+    // If dashboard is not streaming, indicate waiting status
+    if (pill && text) {
+        pill.className = "status-pill offline";
+        text.textContent = "Awaiting Dashboard Stream...";
+    }
+
+    // Fallback simulation only if user explicitly toggled simulation mode locally
     if (simulationMode) {
-        // Generate simulated voltage jitter around 1.44V
         const simVPress = 1.44 + (Math.random() * 0.04 - 0.02);
         const simVDP = 1.44 + (Math.random() * 0.10 - 0.05);
         const simVTemp = 1.44 + (Math.random() * 0.02 - 0.01);
 
-        rawPressure = scaleVoltage(simVPress, 0.48, 2.40, calibConfig.press_min, calibConfig.press_max);
-        rawDP = scaleVoltage(simVDP, 0.48, 2.40, calibConfig.dp_min, calibConfig.dp_max);
-        rawTemp = scaleVoltage(simVTemp, 0.48, 2.40, calibConfig.temp_min, calibConfig.temp_max);
+        const rawPressure = scaleVoltage(simVPress, 0.48, 2.40, calibConfig.press_min, calibConfig.press_max);
+        const rawDP = scaleVoltage(simVDP, 0.48, 2.40, calibConfig.dp_min, calibConfig.dp_max);
+        const rawTemp = scaleVoltage(simVTemp, 0.48, 2.40, calibConfig.temp_min, calibConfig.temp_max);
 
-        // Occasional process disturbance
-        if (Math.random() < 0.05) {
-            rawPressure += (calibConfig.press_max * 0.1);
-        }
-    } else {
-        // Hardware values maintained via Firebase or last known good
-        rawPressure = currentPressure;
-        rawDP = currentDP;
-        rawTemp = currentTemp;
+        filteredPressure = (alpha * rawPressure) + ((1 - alpha) * filteredPressure);
+        filteredDP = (alpha * rawDP) + ((1 - alpha) * filteredDP);
+        currentDPBar = filteredDP / 10000.0;
+        currentTemp = rawTemp;
+        currentFlow = calculateISO5167Flow(filteredDP, filteredPressure, currentTemp, calibConfig.orifice_dia);
+        totalizerM3 += (currentFlow / 3600.0);
+
+        pushChartPoint('flow', currentFlow);
+        pushChartPoint('pressure', filteredPressure);
+        pushChartPoint('temp', currentTemp);
+        pushChartPoint('dp', filteredDP);
+
+        if (trendChart) trendChart.update();
+        renderLCDDisplays();
     }
-
-    // Apply digital smoothing filter (alpha = 0.25)
-    filteredPressure = (alpha * rawPressure) + ((1 - alpha) * filteredPressure);
-    filteredDP = (alpha * rawDP) + ((1 - alpha) * filteredDP);
-    currentDPBar = filteredDP / 10000.0;
-    currentTemp = rawTemp;
-
-    // Compute ISO 5167 flow rate
-    currentFlow = calculateISO5167Flow(filteredDP, filteredPressure, currentTemp, calibConfig.orifice_dia);
-    totalizerM3 += (currentFlow / 3600.0);
-
-    // Update history buffers
-    pushChartPoint('flow', currentFlow);
-    pushChartPoint('pressure', filteredPressure);
-    pushChartPoint('temp', currentTemp);
-    pushChartPoint('dp', filteredDP);
-
-    if (trendChart) {
-        trendChart.update();
-    }
-
-    // Render LCDs on Main Dashboard
-    renderLCDDisplays();
 }
 
 // ========================================================
-// Render LCD Displays
+// Render LCD Displays (Clean Engineering Values Only)
 // ========================================================
 function renderLCDDisplays() {
     // Flow Rate
@@ -358,35 +356,38 @@ function renderLCDDisplays() {
 // ========================================================
 // Data Logger Table (tableWidget)
 // ========================================================
-function logCurrentCycleToTable() {
+function addRowToLogTable(row) {
     const tbody = document.getElementById("log-table-body");
     if (!tbody) return;
 
-    const now = new Date();
-    const timestamp = now.toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = row.timestamp || new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const pressure = Number(row.pressure || 0);
+    const flowRate = Number(row.flow_rate || 0);
+    const temp = Number(row.temperature || 0);
+    const dp = Number(row.dp || 0);
+    const totalizer = Number(row.totalizer || 0);
 
-    const pressPsi = filteredPressure * 14.5038;
-    const tempF = (currentTemp * 9 / 5) + 32;
-    const totalizerL = totalizerM3 * 1000;
+    const pressPsi = pressure * 14.5038;
+    const tempF = (temp * 9 / 5) + 32;
+    const dpBar = dp / 10000.0;
+    const totalizerL = totalizer * 1000;
 
-    const row = document.createElement("tr");
-    row.innerHTML = `
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
         <td>${timestamp}</td>
-        <td>${filteredPressure.toFixed(2)} / ${pressPsi.toFixed(2)}</td>
-        <td style="color: #23d18b; font-weight: bold;">${currentFlow.toFixed(2)}</td>
-        <td>${currentTemp.toFixed(1)} / ${tempF.toFixed(1)}</td>
-        <td>${filteredDP.toFixed(1)} / ${currentDPBar.toFixed(4)}</td>
-        <td>${totalizerM3.toFixed(2)} / ${totalizerL.toFixed(1)}</td>
+        <td>${pressure.toFixed(2)} / ${pressPsi.toFixed(2)}</td>
+        <td style="color: #23d18b; font-weight: bold;">${flowRate.toFixed(2)}</td>
+        <td>${temp.toFixed(1)} / ${tempF.toFixed(1)}</td>
+        <td>${dp.toFixed(1)} / ${dpBar.toFixed(4)}</td>
+        <td>${totalizer.toFixed(2)} / ${totalizerL.toFixed(1)}</td>
     `;
 
-    // Remove placeholder row if present
     if (tbody.children.length === 1 && tbody.children[0].children.length === 1) {
         tbody.innerHTML = '';
     }
 
-    tbody.insertBefore(row, tbody.firstChild);
+    tbody.insertBefore(tr, tbody.firstChild);
 
-    // Limit table length to 100 rows
     while (tbody.children.length > 100) {
         tbody.removeChild(tbody.lastChild);
     }
@@ -402,15 +403,6 @@ function clearTable(tbodyId) {
 // ========================================================
 // Aegis Prime Logs & Floating Supervisor Popup
 // ========================================================
-const aegisFacts = [
-    "Differential pressure across orifice maintains turbulent Reynolds profile (>10,000).",
-    "Static pressure steady within nominal nameplate tolerances.",
-    "Fluid temperature stable. Vapor pressure cavitation threshold verified.",
-    "ISO 5167 expansion factor (epsilon) within ±0.02% error envelope.",
-    "4-20mA current loop integrity verified across ADC channels A0, A1, A2.",
-    "Dual-unit totalizer tracking mass and volumetric conservation accurately."
-];
-
 let aegisPopupTimeout = null;
 
 function showAegisPopup(message) {
@@ -426,7 +418,6 @@ function showAegisPopup(message) {
         dismissAegisPopup();
     }, 8000);
 
-    // Append to Aegis Logs table
     appendAegisLog(message);
 }
 
@@ -435,16 +426,15 @@ function dismissAegisPopup() {
     if (popup) popup.style.display = "none";
 }
 
-function appendAegisLog(message) {
+function appendAegisLog(message, timestamp) {
     const tbody = document.getElementById("aegis-table-body");
     if (!tbody) return;
 
-    const now = new Date();
-    const timestamp = now.toISOString().replace('T', ' ').substring(0, 19);
+    const ts = timestamp || new Date().toISOString().replace('T', ' ').substring(0, 19);
 
     const row = document.createElement("tr");
     row.innerHTML = `
-        <td style="color: #8b949e;">${timestamp}</td>
+        <td style="color: #8b949e;">${ts}</td>
         <td style="color: #0ea5e9;">${message}</td>
     `;
 
@@ -458,12 +448,6 @@ function appendAegisLog(message) {
         tbody.removeChild(tbody.lastChild);
     }
 }
-
-// Random Aegis supervisor advisory every 25 seconds
-setInterval(() => {
-    const randomFact = aegisFacts[Math.floor(Math.random() * aegisFacts.length)];
-    showAegisPopup(randomFact);
-}, 25000);
 
 // ========================================================
 // Calibration Management
@@ -529,73 +513,74 @@ function showToast(message) {
 }
 
 // ========================================================
-// Firebase Realtime Listeners
+// Firebase Realtime Telemetry Listeners (Direct Mirroring)
 // ========================================================
 function initFirebaseListeners() {
     if (!database) return;
 
-    // Listen to current readings broadcasted by main.py
+    // Listen to current readings broadcasted by desktop main.py
     database.ref("current_readings").on("value", (snapshot) => {
         const val = snapshot.val();
         if (val) {
-            // Check hardware permissive
-            if (val.hardware_connected) {
-                const pill = document.getElementById("sync-status");
-                const text = document.getElementById("sync-status-text");
-                if (pill && text) {
-                    pill.className = "status-pill online";
-                    text.textContent = "Hardware Connected";
+            lastTelemetryTime = Date.now();
+            isDashboardConnected = true;
+
+            // Reflect the exact values calculated on the dashboard
+            currentFlow = Number(val.flow_rate != null ? val.flow_rate : currentFlow);
+            filteredPressure = Number(val.pressure != null ? val.pressure : filteredPressure);
+            currentTemp = Number(val.temperature != null ? val.temperature : currentTemp);
+            filteredDP = Number(val.dp != null ? val.dp : filteredDP);
+            currentDPBar = filteredDP / 10000.0;
+            totalizerM3 = Number(val.totalizer != null ? val.totalizer : totalizerM3);
+
+            // Reflect simulation / hardware mode from dashboard
+            const btn = document.getElementById("btnSimulationToggle");
+            if (btn) {
+                if (val.is_simulation) {
+                    btn.classList.add("active");
+                    btn.innerHTML = "<span>🔁</span> Simulation Mode : ON";
+                } else {
+                    btn.classList.remove("active");
+                    btn.innerHTML = "<span>⚡</span> Hardware Mode : ACTIVE";
                 }
             }
-            if (val.voltages) {
-                currentVoltages = val.voltages;
+
+            // Update status indicator
+            const pill = document.getElementById("sync-status");
+            const text = document.getElementById("sync-status-text");
+            if (pill && text) {
+                pill.className = "status-pill online";
+                text.textContent = "⚡ Dashboard Synced (Live)";
             }
 
-            if (!simulationMode) {
-                currentFlow = val.flow_rate || currentFlow;
-                currentPressure = val.pressure || currentPressure;
-                currentTemp = val.temperature || currentTemp;
-                currentDP = val.dp || currentDP;
-                currentDPBar = currentDP / 10000.0;
-                totalizerM3 = val.totalizer || totalizerM3;
+            // Push to live trend chart
+            pushChartPoint('flow', currentFlow);
+            pushChartPoint('pressure', filteredPressure);
+            pushChartPoint('temp', currentTemp);
+            pushChartPoint('dp', filteredDP);
 
-                const btn = document.getElementById("btnSimulationToggle");
-                if (btn) {
-                    btn.innerHTML = `<span>⚡</span> Hardware Mode : ACTIVE`;
-                }
-
-                renderLCDDisplays();
+            if (trendChart) {
+                trendChart.update();
             }
+
+            // Immediately render LCD numbers
+            renderLCDDisplays();
         }
     });
 
-    // Listen to new historical log entries
-    database.ref("flow_data").limitToLast(1).on("child_added", (snapshot) => {
+    // Listen to new historical log entries pushed by log_data_to_table in main.py
+    database.ref("flow_data").limitToLast(20).on("child_added", (snapshot) => {
         const row = snapshot.val();
-        if (row && !simulationMode) {
-            const tbody = document.getElementById("log-table-body");
-            if (tbody) {
-                const tr = document.createElement("tr");
-                const pPsi = (row.pressure || 0) * 14.5038;
-                const tF = ((row.temperature || 0) * 9 / 5) + 32;
-                const totL = (row.totalizer || 0) * 1000;
-                tr.innerHTML = `
-                    <td>${row.timestamp || ''}</td>
-                    <td>${(row.pressure || 0).toFixed(2)} / ${pPsi.toFixed(2)}</td>
-                    <td style="color: #23d18b; font-weight: bold;">${(row.flow_rate || 0).toFixed(2)}</td>
-                    <td>${(row.temperature || 0).toFixed(1)} / ${tF.toFixed(1)}</td>
-                    <td>${(row.dp || 0).toFixed(1)} / ${((row.dp || 0)/10000).toFixed(4)}</td>
-                    <td>${(row.totalizer || 0).toFixed(2)} / ${totL.toFixed(1)}</td>
-                `;
-                tbody.insertBefore(tr, tbody.firstChild);
-            }
+        if (row) {
+            addRowToLogTable(row);
         }
     });
 
-    // Listen to Aegis logs
-    database.ref("aegis_logs").limitToLast(1).on("child_added", (snapshot) => {
+    // Listen to Aegis logs pushed by main.py
+    database.ref("aegis_logs").limitToLast(20).on("child_added", (snapshot) => {
         const log = snapshot.val();
         if (log && log.message) {
+            appendAegisLog(log.message, log.timestamp);
             showAegisPopup(log.message);
         }
     });
@@ -608,14 +593,6 @@ window.addEventListener("DOMContentLoaded", () => {
     initTrendChart();
     initFirebaseListeners();
 
-    // Run system cycle every 1000ms
+    // Check status every second
     setInterval(runSystemCycle, 1000);
-
-    // Record to Data Logger table every 3000ms
-    setInterval(logCurrentCycleToTable, 3000);
-
-    // Initial advisory popup after 3 seconds
-    setTimeout(() => {
-        showAegisPopup("Aegis Prime Supervisory Telemetry Initialized.");
-    }, 3000);
 });
