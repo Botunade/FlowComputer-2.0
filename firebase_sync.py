@@ -161,15 +161,22 @@ class FirebaseSync:
         if self.sync_thread:
             self.sync_thread.join(timeout=5)
 
-    def push_current_readings(self, flow_m3h, pressure, temp, dp, totalizer):
+    def push_current_readings(self, flow_m3h, pressure, temp, dp, totalizer, voltages=None, hw_connected=False):
         """Push current readings to Firebase"""
         flow_data = {
             'flow_rate': round(flow_m3h, 2),
             'pressure': round(pressure, 2),
             'temperature': round(temp, 1),
             'dp': round(dp, 1),
-            'totalizer': round(totalizer, 2)
+            'totalizer': round(totalizer, 2),
+            'hardware_connected': bool(hw_connected)
         }
+        if voltages:
+            flow_data['voltages'] = {
+                'dp': round(float(voltages.get('dp', 0.0)), 3),
+                'sp': round(float(voltages.get('sp', 0.0)), 3),
+                'temp': round(float(voltages.get('temp', 0.0)), 3)
+            }
         return self.sync_flow_data(flow_data)
 
 

@@ -266,7 +266,17 @@ class DashboardApp(QDialog):
 
         if hasattr(self, 'btnSimulationToggle'):
             self.btnSimulationToggle.toggled.connect(self.toggle_simulation_mode)
-            self.btnSimulationToggle.setChecked(True)
+            # The ADS1115 confirmation is the permissive that hardware is connected
+            if self.hardware_connected:
+                print("[PERMISSIVE] ADS1115 detected and confirmed -> Hardware Mode automatically ENGAGED")
+                self.SIMULATION_MODE = False
+                self.btnSimulationToggle.setChecked(False)
+                self.btnSimulationToggle.setText("⚡ Hardware Mode : ACTIVE (ADS1115 OK)")
+            else:
+                print("[INFO] ADS1115 not detected on I2C -> Defaulting to Simulation Mode")
+                self.SIMULATION_MODE = True
+                self.btnSimulationToggle.setChecked(True)
+                self.btnSimulationToggle.setText("Simulation Mode : ON (No Hardware)")
 
         self.ai_facts = [
             "Orifice plates experience permanent pressure loss. Ensure your beta ratio is optimized.",
@@ -413,8 +423,16 @@ class DashboardApp(QDialog):
         self.hardware_fault_acknowledged = False
         if checked:
             self.btnSimulationToggle.setText("Simulation Mode: ON")
+            if hasattr(self, 'label'): self.label.setText("Flow Rate")
+            if hasattr(self, 'label_2'): self.label_2.setText("Temp (°C / °F)")
+            if hasattr(self, 'label_3'): self.label_3.setText("Pressure (bar / psi)")
+            if hasattr(self, 'label_4'): self.label_4.setText("DP (bars / mmH2O)")
+            self.setWindowTitle("Flow Computer 2.0 - Simulation Mode")
         else:
-            self.btnSimulationToggle.setText("Hardware Mode: ACTIVE")
+            if self.hardware_connected:
+                self.btnSimulationToggle.setText("⚡ Hardware Mode : ACTIVE (ADS1115 OK)")
+            else:
+                self.btnSimulationToggle.setText("Hardware Mode : ACTIVE (Waiting for ADS1115...)")
 
     def read_hardware_sensors(self):
         """
@@ -476,6 +494,14 @@ class DashboardApp(QDialog):
                 sp_v = getattr(self, 'current_v_press', 1.44)
                 temp_v = getattr(self, 'current_v_temp', 1.44)
                 mode_prefix = "[SIM]"
+
+                # Reset labels to standard names in Simulation Mode
+                if hasattr(self, 'label'): self.label.setText("Flow Rate")
+                if hasattr(self, 'label_2'): self.label_2.setText("Temp (°C / °F)")
+                if hasattr(self, 'label_3'): self.label_3.setText("Pressure (bar / psi)")
+                if hasattr(self, 'label_4'): self.label_4.setText("DP (bars / mmH2O)")
+                if hasattr(self, 'btnSimulationToggle'):
+                    self.btnSimulationToggle.setText("Simulation Mode : ON")
             else:
                 # In hardware mode, use voltages already sampled by update_system_cycle
                 dp_v = getattr(self, 'current_v_dp', None)
@@ -492,7 +518,21 @@ class DashboardApp(QDialog):
 
                 mode_prefix = "[HW]"
 
-            # Update voltage display labels (if they exist in the UI)
+                # Voltage sensing is active -> Display live sensed voltages directly on the UI labels
+                if hasattr(self, 'label_3'):
+                    self.label_3.setText(f"Pressure (bar / psi)  [{sp_v:.3f} V]")
+                if hasattr(self, 'label_4'):
+                    self.label_4.setText(f"DP (bars / mmH2O)  [{dp_v:.3f} V]")
+                if hasattr(self, 'label_2'):
+                    self.label_2.setText(f"Temp (°C / °F)  [{temp_v:.3f} V]")
+                if hasattr(self, 'label'):
+                    self.label.setText("Flow Rate  [Sensing Active]")
+                if hasattr(self, 'btnSimulationToggle'):
+                    self.btnSimulationToggle.setText(f"⚡ HW Active | A0:{dp_v:.2f}V A1:{sp_v:.2f}V A2:{temp_v:.2f}V")
+
+                self.setWindowTitle(f"Flow Computer 2.0 | ADS1115 Permissive: CONNECTED | Sensing: DP={dp_v:.3f}V, SP={sp_v:.3f}V, Temp={temp_v:.3f}V")
+
+            # Update dedicated voltage labels (if present in custom views)
             if hasattr(self, 'voltage_dp'):
                 self.voltage_dp.setText(f"DP: {dp_v:.3f} V")
             if hasattr(self, 'voltage_sp'):
@@ -504,8 +544,11 @@ class DashboardApp(QDialog):
             if hasattr(self, 'voltage_status'):
                 self.voltage_status.setText(f"{mode_prefix} A0(DP): {dp_v:.3f}V | A1(SP): {sp_v:.3f}V | A2(T): {temp_v:.3f}V")
 
-            # Log to console for debugging
-            print(f"Live Readings: {mode_prefix} DP={dp_v:.3f}V | SP={sp_v:.3f}V | Temp={temp_v:.3f}V")
+            # Console log with permissive status
+            if mode_prefix == "[HW]":
+                print(f"[ADS1115 PERMISSIVE: HW CONNECTED] Sensing Voltages -> A0(DP): {dp_v:.3f}V | A1(SP): {sp_v:.3f}V | A2(Temp): {temp_v:.3f}V")
+            else:
+                print(f"[SIMULATION MODE] Generated Voltages -> DP: {dp_v:.3f}V | SP: {sp_v:.3f}V | Temp: {temp_v:.3f}V")
 
         except Exception as e:
             print(f"Error in update_live_values: {e}")
@@ -537,9 +580,13 @@ class DashboardApp(QDialog):
                     self.temp_sensor = AnalogIn(self.ads, 2)
                     self.hardware_connected = True
                     HARDWARE_AVAILABLE = True
-                    print("ADS1115 reconnected successfully - switched to Hardware Mode")
+                    self.SIMULATION_MODE = False
+                    if hasattr(self, 'btnSimulationToggle'):
+                        self.btnSimulationToggle.setChecked(False)
+                        self.btnSimulationToggle.setText("⚡ Hardware Mode : ACTIVE (ADS1115 OK)")
+                    print("[PERMISSIVE] ADS1115 confirmed reconnected -> Hardware Mode automatically ENGAGED")
                     if hasattr(self, 'voltage_status'):
-                        self.voltage_status.setText("Hardware reconnected!")
+                        self.voltage_status.setText("Hardware Permissive: Reconnected!")
                     return
 
         except Exception as e:
@@ -636,7 +683,13 @@ class DashboardApp(QDialog):
                     self.filtered_pressure,
                     self.current_temp,
                     self.filtered_dp,
-                    self.totalizer_m3
+                    self.totalizer_m3,
+                    voltages={
+                        'dp': getattr(self, 'current_v_dp', 0.0),
+                        'sp': getattr(self, 'current_v_press', 0.0),
+                        'temp': getattr(self, 'current_v_temp', 0.0)
+                    },
+                    hw_connected=self.hardware_connected and not self.SIMULATION_MODE
                 )
             except Exception:
                 pass
