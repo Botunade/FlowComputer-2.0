@@ -3,263 +3,894 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aegis Prime Flow Computer Dashboard</title>
+    <title>Flow Computer 2.0 - Aegis Prime Industrial Dashboard</title>
+    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    <!-- Chart.js for trends -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
         body {
-            font-family: 'Segoe UI', 'Roboto', sans-serif;
-            background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+            background-color: #0d1117;
             color: #c9d1d9;
             min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
         }
-        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
-        .tabs { display: flex; background: #010409; border-radius: 8px; margin-bottom: 20px; }
-        .tab { padding: 12px 24px; cursor: pointer; transition: all 0.3s; }
-        .tab:hover { background: #30363d; }
-        .tab.active { background: #8957e5; color: white; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-        .card { background: #010409; border-radius: 8px; padding: 20px; border: 1px solid #30363d; }
-        .stat { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #30363d; }
-        .stat:last-child { border-bottom: none; }
-        .stat-value { font-size: 28px; font-weight: bold; color: #23d18b; }
-        .stat-label { color: #8b949e; font-size: 12px; }
-        .unit { font-size: 14px; color: #58a6ff; }
-        .logs-container { max-height: 400px; overflow-y: auto; }
-        .log-entry { padding: 12px; border-left: 3px solid #8957e5; margin-bottom: 10px; background: rgba(137, 87, 229, 0.1); }
-        .timestamp { font-size: 12px; color: #8b949e; margin-bottom: 4px; }
-        .message { color: #c9d1d9; }
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #161b22; padding: 12px; text-align: left; color: #8b949e; }
-        td { padding: 12px; border-bottom: 1px solid #30363d; }
-        tr:hover { background: #161b22; }
-        .chart-container { position: relative; height: 300px; }
-        #offline-badge { position: fixed; top: 20px; right: 20px; background: #f85149; padding: 8px 16px; border-radius: 20px; z-index: 1000; }
+
+        /* Top Bar / Header */
+        header {
+            background-color: #010409;
+            border-bottom: 1px solid #30363d;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #f0f6fc;
+            letter-spacing: 0.5px;
+        }
+
+        .header-title .icon {
+            font-size: 1.4rem;
+        }
+
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 0.85rem;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.75rem;
+            border: 1px solid #30363d;
+            background: #161b22;
+        }
+
+        .status-pill.online {
+            color: #23d18b;
+            border-color: rgba(35, 209, 139, 0.3);
+        }
+
+        .status-pill.offline {
+            color: #f85149;
+            border-color: rgba(248, 81, 73, 0.3);
+        }
+
+        .status-pill .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: currentColor;
+            display: inline-block;
+        }
+
+        /* Main Container */
+        .app-container {
+            max-width: 1440px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 16px 24px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Tabs (matching QTabWidget 'main') */
+        .main-tab-bar {
+            display: flex;
+            background-color: #0d1117;
+            border-bottom: 2px solid #30363d;
+            margin-bottom: 16px;
+            gap: 4px;
+            overflow-x: auto;
+        }
+
+        .tab-btn {
+            background: transparent;
+            color: #8b949e;
+            border: none;
+            border-bottom: 2px solid transparent;
+            padding: 12px 24px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tab-btn:hover {
+            color: #ffffff;
+            background-color: #161b22;
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+        }
+
+        .tab-btn.active {
+            color: #0ea5e9;
+            border-bottom: 2px solid #0ea5e9;
+            background-color: #161b22;
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+        }
+
+        /* Tab Content Panes */
+        .tab-content {
+            display: none;
+            flex: 1;
+            animation: fadeIn 0.15s ease-in-out;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(2px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ========================================================
+           TAB 1: MAIN_DASHBOARD (Mirroring dashboard.ui Grid)
+           Row 0: Flow Rate | Simulation Toggle | Temp
+           Row 1: LCD Flow  | [spacer]          | LCD Temp
+           Row 2: Pressure  | [spacer]          | DP
+           Row 3: LCD Press | [spacer]          | LCD DP
+           Row 4: [spacer]  | Totalizer         | [spacer]
+           Row 5: [spacer]  | LCD Totalizer     | [spacer]
+           ======================================================== */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 280px 1fr;
+            grid-template-rows: auto auto auto auto auto auto;
+            gap: 16px 24px;
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 24px;
+            align-items: center;
+        }
+
+        @media (max-width: 900px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+        }
+
+        /* LCD Digital Card */
+        .lcd-card {
+            background-color: #010409;
+            border: 2px solid #30363d;
+            border-radius: 8px;
+            padding: 16px 20px;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            box-shadow: inset 0 2px 6px rgba(0,0,0,0.6);
+            position: relative;
+        }
+
+        .lcd-title {
+            color: #c9d1d9;
+            font-size: 0.95rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .lcd-value-container {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+        }
+
+        .lcd-number {
+            font-family: 'Courier New', 'Consolas', monospace;
+            font-size: 2.8rem;
+            font-weight: 700;
+            color: #23d18b;
+            text-shadow: 0 0 10px rgba(35, 209, 139, 0.4), 0 0 2px rgba(35, 209, 139, 0.8);
+            letter-spacing: 2px;
+            line-height: 1.1;
+        }
+
+        .lcd-units {
+            font-size: 0.9rem;
+            color: #8b949e;
+            font-weight: 600;
+        }
+
+        .lcd-subvalue {
+            font-size: 0.8rem;
+            color: #0ea5e9;
+            margin-top: 4px;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* Simulation Toggle Button */
+        .sim-btn-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .btn-sim-toggle {
+            background-color: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 14px 20px;
+            color: #c9d1d9;
+            font-weight: 700;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .btn-sim-toggle:hover {
+            background-color: #30363d;
+            color: #ffffff;
+        }
+
+        .btn-sim-toggle.active {
+            background-color: #8957e5;
+            border-color: #a371f7;
+            color: #ffffff;
+            box-shadow: 0 0 12px rgba(137, 87, 229, 0.4);
+        }
+
+        /* ========================================================
+           TAB 2: TRENDS (Sub-tabs: Flow, Pressure, Temp, DP)
+           ======================================================== */
+        .trends-card {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .sub-tab-bar {
+            display: flex;
+            gap: 8px;
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 8px;
+        }
+
+        .sub-tab-btn {
+            background: #21262d;
+            color: #8b949e;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            padding: 8px 18px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .sub-tab-btn:hover {
+            color: #ffffff;
+            background-color: #30363d;
+        }
+
+        .sub-tab-btn.active {
+            background-color: #0ea5e9;
+            color: #ffffff;
+            border-color: #0ea5e9;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 480px;
+            background-color: #010409;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 16px;
+        }
+
+        /* ========================================================
+           TAB 3: DATA LOGGER & TAB 4: AEGIS LOGS
+           ======================================================== */
+        .table-card {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 20px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .table-header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .table-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #f0f6fc;
+        }
+
+        .table-container {
+            max-height: 520px;
+            overflow-y: auto;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            background-color: #010409;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th {
+            background-color: #161b22;
+            color: #c9d1d9;
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 700;
+            font-size: 0.85rem;
+            border-bottom: 1px solid #30363d;
+            border-right: 1px solid #30363d;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        td {
+            padding: 10px 16px;
+            border-bottom: 1px solid #21262d;
+            border-right: 1px solid #21262d;
+            color: #0ea5e9;
+            font-family: 'Courier New', monospace;
+            font-size: 0.88rem;
+        }
+
+        tr:nth-child(even) td {
+            background-color: rgba(255, 255, 255, 0.015);
+        }
+
+        tr:hover td {
+            background-color: #21262d;
+            color: #ffffff;
+        }
+
+        /* ========================================================
+           TAB 5: CALIBRATIONS (Transmitters & Orifice sub-tabs)
+           ======================================================== */
+        .calibration-form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+            margin-top: 16px;
+        }
+
+        .form-section {
+            background-color: #010409;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 20px;
+        }
+
+        .form-section-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #c9d1d9;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #30363d;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-label {
+            font-size: 0.82rem;
+            color: #8b949e;
+            font-weight: 600;
+        }
+
+        .form-input {
+            background-color: #0d1117;
+            color: #0ea5e9;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            padding: 10px 14px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus {
+            border-color: #8957e5;
+            box-shadow: 0 0 6px rgba(137, 87, 229, 0.3);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .btn-save {
+            background-color: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 12px 24px;
+            color: #c9d1d9;
+            font-weight: 700;
+            font-size: 0.95rem;
+            cursor: pointer;
+            margin-top: 16px;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-save:hover {
+            background-color: #30363d;
+            color: #ffffff;
+            border-color: #0ea5e9;
+        }
+
+        /* ========================================================
+           AEGIS PRIME FLOATING NOTIFICATION (Corner popup)
+           ======================================================== */
+        .aegis-popup {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 280px;
+            background-color: #0d1117;
+            border: 2px solid #8957e5;
+            border-radius: 8px;
+            padding: 12px 14px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.8), 0 0 12px rgba(137, 87, 229, 0.3);
+            z-index: 9999;
+            animation: slideInRight 0.3s ease-out;
+            cursor: pointer;
+            display: none;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .aegis-popup-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .aegis-popup-title {
+            color: #8957e5;
+            font-size: 0.85rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .aegis-popup-close {
+            background: none;
+            border: none;
+            color: #8b949e;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        .aegis-popup-close:hover {
+            color: #f85149;
+        }
+
+        .aegis-popup-message {
+            color: #0ea5e9;
+            font-size: 0.85rem;
+            line-height: 1.35;
+            font-weight: 600;
+        }
+
+        /* Toast notification */
+        .toast-notify {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #23d18b;
+            color: #010409;
+            font-weight: 700;
+            padding: 12px 20px;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            z-index: 10000;
+            display: none;
+            animation: fadeInDown 0.3s ease;
+        }
+
+        @keyframes fadeInDown {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🤖 Aegis Prime Flow Computer Dashboard</h1>
-
-        <div id="offline-badge" style="display: none;">⚠️ Offline - Buffering Data</div>
-
-        <div class="tabs">
-            <div class="tab active" onclick="showTab('main')">Main Dashboard</div>
-            <div class="tab" onclick="showTab('trends')">Trends</div>
-            <div class="tab" onclick="showTab('data')">Data Logger</div>
-            <div class="tab" onclick="showTab('calibration')">Calibrations</div>
-            <div class="tab" onclick="showTab('aegis')">Aegis Logs</div>
-            <div class="tab" onclick="showTab('flow')">Flow Data</div>
+    <!-- Header -->
+    <header>
+        <div class="header-title">
+            <span class="icon">⚡</span>
+            <span>Flow Computer 2.0 &bull; Industrial Supervisory Dashboard</span>
         </div>
+        <div class="header-status">
+            <span id="sync-status" class="status-pill online">
+                <span class="dot"></span>
+                <span id="sync-status-text">Connected</span>
+            </span>
+            <span id="live-clock" style="font-family: 'Courier New', monospace; color: #8b949e;">--:--:--</span>
+        </div>
+    </header>
 
-        <div id="main" class="tab-content">
-            <div class="grid">
-                <div class="card">
-                    <div class="stat">
-                        <div>
-                            <div class="stat-label">Flow Rate</div>
-                            <div class="stat-value" id="flow-rate">--</div>
-                        </div>
-                        <div class="unit">m³/h</div>
-                    </div>
-                    <div class="stat">
-                        <div>
-                            <div class="stat-label">Totalizer</div>
-                            <div class="stat-value" id="totalizer">--</div>
-                        </div>
-                        <div class="unit">m³</div>
-                    </div>
-                    <div class="stat">
-                        <div>
-                            <div class="stat-label">Temperature</div>
-                            <div class="stat-value" id="temperature">--</div>
-                        </div>
-                        <div class="unit">°C</div>
-                    </div>
-                    <div class="stat">
-                        <div>
-                            <div class="stat-label">Pressure</div>
-                            <div class="stat-value" id="pressure">--</div>
-                        </div>
-                        <div class="unit">bar</div>
-                    </div>
-                    <div class="stat">
-                        <div>
-                            <div class="stat-label">Diff Pressure</div>
-                            <div class="stat-value" id="dp">--</div>
-                        </div>
-                        <div class="unit">mmH₂O</div>
+    <!-- App Body -->
+    <div class="app-container">
+        <!-- Top Navigation (QTabWidget 'main') -->
+        <nav class="main-tab-bar">
+            <button class="tab-btn active" onclick="switchMainTab('Main_Dashboard', this)">
+                <span>📊</span> Main_Dashboard
+            </button>
+            <button class="tab-btn" onclick="switchMainTab('Trends', this)">
+                <span>📈</span> Trends
+            </button>
+            <button class="tab-btn" onclick="switchMainTab('Data_Logger', this)">
+                <span>📋</span> Data_Logger
+            </button>
+            <button class="tab-btn" onclick="switchMainTab('Aegis_Logs', this)">
+                <span>🤖</span> Aegis Logs
+            </button>
+            <button class="tab-btn" onclick="switchMainTab('Calibrations', this)">
+                <span>⚙️</span> Calibrations
+            </button>
+        </nav>
+
+        <!-- ========================================================
+             TAB 1: MAIN_DASHBOARD
+             ======================================================== -->
+        <section id="Main_Dashboard" class="tab-content active">
+            <div class="dashboard-grid">
+                <!-- Row 0, Col 0: Label Flow Rate -->
+                <div class="lcd-title">Flow Rate</div>
+                <!-- Row 0, Col 1: Simulation Mode Toggle Button -->
+                <div class="sim-btn-container">
+                    <button id="btnSimulationToggle" class="btn-sim-toggle active" onclick="toggleSimulationMode()">
+                        <span>🔁</span> Simulation Mode : ON
+                    </button>
+                </div>
+                <!-- Row 0, Col 2: Label Temp -->
+                <div class="lcd-title">Temp (&deg;C / &deg;F)</div>
+
+                <!-- Row 1, Col 0: LCD Flow Rate -->
+                <div class="lcd-card">
+                    <div class="lcd-value-container">
+                        <div id="lcd_flow_rate" class="lcd-number">0.00</div>
+                        <div class="lcd-units">m&sup3;/h</div>
                     </div>
                 </div>
-                <div class="card">
-                    <h3 style="margin-bottom: 15px; color: #8b949e;">Flow Rate Chart</h3>
-                    <div class="chart-container">
-                        <canvas id="flow-chart-main"></canvas>
+                <!-- Row 1, Col 1: Spacer -->
+                <div></div>
+                <!-- Row 1, Col 2: LCD Temp -->
+                <div class="lcd-card">
+                    <div class="lcd-value-container">
+                        <div id="lcd_temp" class="lcd-number">0.0</div>
+                        <div class="lcd-units">&deg;C</div>
                     </div>
+                    <div id="lcd_temp_sub" class="lcd-subvalue">32.0 &deg;F</div>
+                </div>
+
+                <!-- Row 2, Col 0: Label Pressure -->
+                <div class="lcd-title">Pressure (bar / psi)</div>
+                <!-- Row 2, Col 1: Spacer -->
+                <div></div>
+                <!-- Row 2, Col 2: Label DP -->
+                <div class="lcd-title">DP (bars / mmH2O)</div>
+
+                <!-- Row 3, Col 0: LCD Pressure -->
+                <div class="lcd-card">
+                    <div class="lcd-value-container">
+                        <div id="lcd_pressure" class="lcd-number">0.00</div>
+                        <div class="lcd-units">bar</div>
+                    </div>
+                    <div id="lcd_pressure_sub" class="lcd-subvalue">0.00 psi</div>
+                </div>
+                <!-- Row 3, Col 1: Spacer -->
+                <div></div>
+                <!-- Row 3, Col 2: LCD DP -->
+                <div class="lcd-card">
+                    <div class="lcd-value-container">
+                        <div id="lcd_dp" class="lcd-number">0.0000</div>
+                        <div class="lcd-units">bar</div>
+                    </div>
+                    <div id="lcd_dp_sub" class="lcd-subvalue">0.0 mmH2O</div>
+                </div>
+
+                <!-- Row 4, Col 1: Label Totalizer (Centered) -->
+                <div></div>
+                <div class="lcd-title" style="text-align: center; justify-content: center;">
+                    Totalizer (m&sup3; / L)
+                </div>
+                <div></div>
+
+                <!-- Row 5, Col 1: LCD Totalizer (Centered) -->
+                <div></div>
+                <div class="lcd-card" style="border-color: #23d18b;">
+                    <div class="lcd-value-container" style="justify-content: center; gap: 12px;">
+                        <div id="lcd_totalizer" class="lcd-number">0.00</div>
+                        <div class="lcd-units">m&sup3;</div>
+                    </div>
+                    <div id="lcd_totalizer_sub" class="lcd-subvalue" style="text-align: center;">0.00 L</div>
+                </div>
+                <div></div>
+            </div>
+        </section>
+
+        <!-- ========================================================
+             TAB 2: TRENDS
+             ======================================================== -->
+        <section id="Trends" class="tab-content">
+            <div class="trends-card">
+                <div class="sub-tab-bar">
+                    <button class="sub-tab-btn active" onclick="switchTrendSubTab('flow', this)">Flow Rate</button>
+                    <button class="sub-tab-btn" onclick="switchTrendSubTab('pressure', this)">Pressure</button>
+                    <button class="sub-tab-btn" onclick="switchTrendSubTab('temp', this)">Temperature</button>
+                    <button class="sub-tab-btn" onclick="switchTrendSubTab('dp', this)">Differential Pressure</button>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="trendChartCanvas"></canvas>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <div id="trends" class="tab-content" style="display: none;">
-            <h2>Flow Trends</h2>
-            <div class="grid">
-                <div class="chart-container">
-                    <h3 style="color: #23d18b; margin-bottom: 10px;">Flow Rate</h3>
-                    <canvas id="flow-chart-trends"></canvas>
+        <!-- ========================================================
+             TAB 3: DATA_LOGGER
+             ======================================================== -->
+        <section id="Data_Logger" class="tab-content">
+            <div class="table-card">
+                <div class="table-header-bar">
+                    <div class="table-title">System Log History (tableWidget)</div>
+                    <button class="btn-save" style="margin-top: 0; padding: 6px 14px; font-size: 0.8rem;" onclick="clearTable('log-table-body')">
+                        Clear View
+                    </button>
                 </div>
-                <div class="chart-container">
-                    <h3 style="color: #0ea5e9; margin-bottom: 10px;">Pressure</h3>
-                    <canvas id="pressure-chart-trends"></canvas>
-                </div>
-                <div class="chart-container">
-                    <h3 style="color: #ff7b72; margin-bottom: 10px;">Temperature</h3>
-                    <canvas id="temp-chart-trends"></canvas>
-                </div>
-                <div class="chart-container">
-                    <h3 style="color: #8957e5; margin-bottom: 10px;">Differential Pressure</h3>
-                    <canvas id="dp-chart-trends"></canvas>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Pressure (bar / psi)</th>
+                                <th>Flow Rate (m&sup3;/h)</th>
+                                <th>Temp (&deg;C / &deg;F)</th>
+                                <th>DP (mmH2O / bar)</th>
+                                <th>Totalizer (m&sup3; / L)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log-table-body">
+                            <tr><td colspan="6" style="text-align: center; color: #8b949e;">Waiting for logging cycles...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <div id="data" class="tab-content" style="display: none;">
-            <h2>Data Logger</h2>
-            <div class="chart-container" style="height: auto;">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Timestamp</th>
-                            <th>Pressure (bar)</th>
-                            <th>Flow Rate (m³/h)</th>
-                            <th>Temperature (°C)</th>
-                            <th>DP (mmH₂O)</th>
-                            <th>Totalizer (m³)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="data-table">
-                        <tr><td colspan="6">Loading...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div id="calibration" class="tab-content" style="display: none;">
-            <h2>Calibrations</h2>
-            <div class="grid">
-                <div class="card">
-                    <h3>Transmitter Settings</h3>
-                    <div class="stat">
-                        <div>
-                            <div class="stat-label">DP Min (mmH2O)</div>
-                            <div class="stat-value" id="dp-min">--</div>
-                        </div>
-                        <div class="unit"></div>
-                    </div>
-                    <div class="stat">
-                        <div>
-                            <div class="stat-label">DP Max (mmH2O)</div>
-                            <div class="stat-value" id="dp-max">--</div>
-                        </div>
-                        <div class="unit"></div>
-                    </div>
-                    <div class="stat">
-                        <div>
-                            <div class="stat-label">Pressure Min (bar)</div>
-                            <div class="stat-value" id="press-min">--</div>
-                        </div>
-                        <div class="unit"></div>
-                    </div>
-                    <div class="stat">
-                        <div>
-                            <div class="stat-label">Pressure Max (bar)</div>
-                            <div class="stat-value" id="press-max">--</div>
-                        </div>
-                        <div class="unit"></div>
-                    </div>
-                    <div class="stat">
-                        <div>
-                            <div class="stat-label">Temperature Min (°C)</div>
-                            <div class="stat-value" id="temp-min">--</div>
-                        </div>
-                        <div class="unit"></div>
-                    </div>
-                    <div class="stat">
-                        <div>
-                            <div class="stat-label">Temperature Max (°C)</div>
-                            <div class="stat-value" id="temp-max">--</div>
-                        </div>
-                        <div class="unit"></div>
-                    </div>
+        <!-- ========================================================
+             TAB 4: AEGIS LOGS
+             ======================================================== -->
+        <section id="Aegis_Logs" class="tab-content">
+            <div class="table-card">
+                <div class="table-header-bar">
+                    <div class="table-title">Aegis Prime Observations &amp; Event Logs</div>
                 </div>
-                <div class="card">
-                    <h3>Orifice Settings</h3>
-                    <div class="stat">
-                        <div>
-                            <div class="stat-label">Pipe Diameter (mm)</div>
-                            <div class="stat-value" id="pipe-dia">--</div>
-                        </div>
-                        <div class="unit">mm</div>
-                    </div>
-                    <div class="stat">
-                        <div>
-                            <div class="stat-label">Orifice Diameter (mm)</div>
-                            <div class="stat-value" id="orifice-dia">--</div>
-                        </div>
-                        <div class="unit">mm</div>
-                    </div>
-                    <div class="stat">
-                        <div>
-                            <div class="stat-label">Fluid Density</div>
-                            <div class="stat-value" id="fluid-density">--</div>
-                        </div>
-                        <div class="unit">kg/m³</div>
-                    </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 220px;">Timestamp</th>
+                                <th>Aegis Message</th>
+                            </tr>
+                        </thead>
+                        <tbody id="aegis-table-body">
+                            <tr><td colspan="2" style="text-align: center; color: #8b949e;">No events recorded yet.</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <div id="aegis" class="tab-content" style="display: none;">
-            <h2>Aegis AI Observations</h2>
-            <div class="logs-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Timestamp</th>
-                            <th>Message</th>
-                        </tr>
-                    </thead>
-                    <tbody id="aegis-logs">
-                        <tr><td colspan="2">Loading...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <!-- ========================================================
+             TAB 5: CALIBRATIONS
+             ======================================================== -->
+        <section id="Calibrations" class="tab-content">
+            <div class="trends-card">
+                <div class="sub-tab-bar">
+                    <button class="sub-tab-btn active" onclick="switchCalibSubTab('transmitters', this)">Transmitters</button>
+                    <button class="sub-tab-btn" onclick="switchCalibSubTab('orifice', this)">Orifice</button>
+                </div>
 
-        <div id="flow" class="tab-content" style="display: none;">
-            <h2>Flow Data History</h2>
-            <div class="chart-container">
-                <canvas id="flow-chart"></canvas>
+                <!-- Sub-tab 1: Transmitters -->
+                <div id="calib-transmitters" class="calib-sub-content">
+                    <div class="calibration-form-grid">
+                        <div class="form-section">
+                            <div class="form-section-title">DP Transmitter Nameplate (bar)</div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">DP Min (mmH2O)</label>
+                                    <input type="number" step="0.1" id="spin_dp_min" class="form-input" value="0.0">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">DP Max (mmH2O)</label>
+                                    <input type="number" step="0.1" id="spin_dp_max" class="form-input" value="2500.0">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <div class="form-section-title">Static Pressure Nameplate (bar)</div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Pressure Min (bar)</label>
+                                    <input type="number" step="0.1" id="spin_press_min" class="form-input" value="0.0">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Pressure Max (bar)</label>
+                                    <input type="number" step="0.1" id="spin_press_max" class="form-input" value="60.0">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <div class="form-section-title">Temperature Nameplate (&deg;C)</div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Temp Min (&deg;C)</label>
+                                    <input type="number" step="0.1" id="spin_temp_min" class="form-input" value="0.0">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Temp Max (&deg;C)</label>
+                                    <input type="number" step="0.1" id="spin_temp_max" class="form-input" value="80.0">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn-save" onclick="saveTransmitterCalibration()">
+                        <span>💾</span> Save Changes
+                    </button>
+                </div>
+
+                <!-- Sub-tab 2: Orifice -->
+                <div id="calib-orifice" class="calib-sub-content" style="display: none;">
+                    <div class="calibration-form-grid">
+                        <div class="form-section">
+                            <div class="form-section-title">Mechanical Geometry</div>
+                            <div class="form-group">
+                                <label class="form-label">Pipe Internal Diameter (inch)</label>
+                                <input type="number" step="0.001" id="spin_pipe_dia" class="form-input" value="3.0">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Orifice Bore Diameter (inch)</label>
+                                <input type="number" step="0.001" id="spin_orifice_dia" class="form-input" value="2.0">
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <div class="form-section-title">Fluid Properties</div>
+                            <div class="form-group">
+                                <label class="form-label">Base Fluid Density (kg/m&sup3;)</label>
+                                <input type="number" step="0.1" id="spin_fluid_density" class="form-input" value="1.0">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Dynamic Viscosity (cP)</label>
+                                <input type="number" step="0.01" id="spin_dynamic" class="form-input" value="1.0">
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <div class="form-section-title">Thermodynamic &amp; Expansion</div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Atmospheric Pressure (bar)</label>
+                                    <input type="number" step="0.01" id="spin_atmospheric" class="form-input" value="1.0">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Isentropic Exponent</label>
+                                    <input type="number" step="0.01" id="spin_isentropic" class="form-input" value="1.4">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Pipe Expansion Factor (1/&deg;C)</label>
+                                    <input type="number" step="0.0001" id="spin_pipe_expansion" class="form-input" value="0.0">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Orifice Expansion Factor (1/&deg;C)</label>
+                                    <input type="number" step="0.0001" id="spin_orifice_expansion" class="form-input" value="0.0">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn-save" onclick="saveOrificeCalibration()">
+                        <span>💾</span> Save Changes
+                    </button>
+                </div>
             </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Timestamp</th>
-                        <th>Pressure (bar)</th>
-                        <th>Flow Rate (m³/h)</th>
-                        <th>Temperature (°C)</th>
-                        <th>DP (mmH₂O)</th>
-                        <th>Totalizer (m³)</th>
-                    </tr>
-                </thead>
-                <tbody id="flow-data">
-                    <tr><td colspan="6">Loading...</td></tr>
-                </tbody>
-            </table>
+        </section>
+    </div>
+
+    <!-- Floating Aegis Prime Notification (Small corner popup) -->
+    <div id="aegis-popup" class="aegis-popup" onclick="dismissAegisPopup()">
+        <div class="aegis-popup-header">
+            <div class="aegis-popup-title">
+                <span>🤖</span> Aegis Prime
+            </div>
+            <button class="aegis-popup-close" onclick="event.stopPropagation(); dismissAegisPopup();">&times;</button>
+        </div>
+        <div id="aegis-popup-msg" class="aegis-popup-message">
+            Supervisory monitoring online.
         </div>
     </div>
 
+    <!-- Toast Notification -->
+    <div id="toast" class="toast-notify">Settings Saved Successfully</div>
+
+    <!-- Main Logic Script -->
     <script src="app.js"></script>
 </body>
 </html>

@@ -1,4 +1,5 @@
 import sys
+import signal
 import random
 import math
 import json
@@ -9,9 +10,17 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox, QLCDNumber, QTableWidgetItem, QWidget
 )
 from PySide6.QtCore import QTimer, Qt, QDateTime, QFile, QIODevice, QObject
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtUiTools import QUiLoader
 import pyqtgraph as pg
 import sqlite3
+
+# Optional Firebase synchronization for web dashboard
+try:
+    from firebase_sync import get_sync_instance
+    FIREBASE_SYNC_AVAILABLE = True
+except ImportError:
+    FIREBASE_SYNC_AVAILABLE = False
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -75,28 +84,36 @@ class AegisPrimeSupervisor(QDialog):
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
         self.setStyleSheet("""
-            QDialog { background-color: #0d1117; border: 2px solid #8957e5; border-radius: 8px; }
-            QLabel { color: #0ea5e9; font-family: 'Segoe UI', 'Roboto', sans-serif; font-weight: bold; font-size: 10pt; }
+            QDialog { background-color: #0d1117; border: 2px solid #8957e5; border-radius: 6px; }
+            QLabel { color: #0ea5e9; font-family: 'Segoe UI', 'Roboto', sans-serif; font-weight: bold; font-size: 9pt; }
         """)
         layout = QVBoxLayout()
-        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setContentsMargins(10, 8, 10, 8)
         label = QLabel(f"🤖 Aegis Prime:\n{message}")
         label.setWordWrap(True)
         layout.addWidget(label)
         self.setLayout(layout)
 
-        if parent:
+        # Always anchor to the bottom-right corner of the active screen
+        popup_w = 260
+        self.setFixedWidth(popup_w)
+        self.adjustSize()
+        popup_h = max(60, self.sizeHint().height())
+        margin = 16
+
+        primary_screen = QGuiApplication.primaryScreen()
+        if primary_screen:
+            s_geo = primary_screen.availableGeometry()
+            x = s_geo.x() + s_geo.width() - popup_w - margin
+            y = s_geo.y() + s_geo.height() - popup_h - margin
+            self.move(x, y)
+        elif parent:
             p_geo = parent.geometry()
-            popup_w = min(360, max(260, int(p_geo.width() * 0.38)))
-            self.setFixedWidth(popup_w)
-            self.adjustSize()
-            popup_h = self.sizeHint().height()
-            margin = 16
             x = p_geo.x() + p_geo.width() - popup_w - margin
             y = p_geo.y() + p_geo.height() - popup_h - margin
-            self.move(max(p_geo.x() + margin, x), max(p_geo.y() + margin, y))
+            self.move(x, y)
         else:
-            self.resize(320, 90)
+            self.resize(260, 75)
 
         if db_path:
             self._save_to_database()
@@ -169,6 +186,21 @@ class DashboardApp(QDialog):
         self.last_valid_press = 1.44
         self.last_valid_temp = 1.44
         self.i2c_error_count = 0
+        self.cal_v_min = 0.48
+        self.cal_v_max = 2.40
+        self.cal_offset_dp = 0.0
+        self.cal_offset_sp = 0.0
+        self.cal_offset_temp = 0.0
+
+        # Initialize Firebase background synchronization if configured
+        self.firebase_sync = None
+        if FIREBASE_SYNC_AVAILABLE:
+            try:
+                self.firebase_sync = get_sync_instance(self.db_path)
+                if self.firebase_sync and self.firebase_sync.is_connected:
+                    print("Firebase Sync: Connected and ready for web mirroring")
+            except Exception as e:
+                print(f"Firebase Sync note: {e}")
         
         self.max_points = 60
         self.xdata = list(range(-self.max_points, 0))
@@ -211,7 +243,7 @@ class DashboardApp(QDialog):
                         # Try default address 0x48 first
                         for addr in [0x48, 0x49, 0x4a, 0x4b]:
                             try:
-                                self.ads = ADS.ADS1115(self.i2c, address=addr)
+                                self.ads = ADS.ADS1115(self.i2c, address=addr, gain=1)
                                 print(f"Connected to ADS1115 at address 0x{addr:02x}")
                                 break
                             except Exception:
@@ -290,6 +322,12 @@ class DashboardApp(QDialog):
                 if hasattr(self, 'spin_isentropic'): self.spin_isentropic.setValue(config.get("isentropic", 1.4))
                 if hasattr(self, 'spin_pipe_expansion'): self.spin_pipe_expansion.setValue(config.get("pipe_expansion", 0.0))
                 if hasattr(self, 'spin_orifice_expansion'): self.spin_orifice_expansion.setValue(config.get("orifice_expansion", 0.0))
+
+                self.cal_v_min = config.get("v_min", 0.48)
+                self.cal_v_max = config.get("v_max", 2.40)
+                self.cal_offset_dp = config.get("v_offset_dp", 0.0)
+                self.cal_offset_sp = config.get("v_offset_sp", 0.0)
+                self.cal_offset_temp = config.get("v_offset_temp", 0.0)
                 
             except Exception as e:
                 print(f"Error loading configuration: {e}")
@@ -392,12 +430,19 @@ class DashboardApp(QDialog):
 
         for attempt in range(3):
             try:
-                # Read voltages with small settling delay between channel conversions
-                dp_v = float(self.dp_sensor.voltage)
-                time.sleep(0.005)
-                sp_v = float(self.sp_sensor.voltage)
-                time.sleep(0.005)
-                temp_v = float(self.temp_sensor.voltage)
+                # Multi-sample averaging: average 3 successive reads to smooth out loop noise
+                def get_channel_avg(sensor, samples=3):
+                    total = 0.0
+                    for _ in range(samples):
+                        total += float(sensor.voltage)
+                        time.sleep(0.003)
+                    return total / samples
+
+                dp_v = get_channel_avg(self.dp_sensor, 3)
+                time.sleep(0.004)
+                sp_v = get_channel_avg(self.sp_sensor, 3)
+                time.sleep(0.004)
+                temp_v = get_channel_avg(self.temp_sensor, 3)
 
                 # Reset error counter on successful read
                 self.i2c_error_count = 0
@@ -479,7 +524,7 @@ class DashboardApp(QDialog):
             if "0x48" in devices or "0x49" in devices or "0x4a" in devices or "0x4b" in devices:
                 for addr in [0x48, 0x49, 0x4a, 0x4b]:
                     try:
-                        self.ads = ADS.ADS1115(self.i2c, address=addr)
+                        self.ads = ADS.ADS1115(self.i2c, address=addr, gain=1)
                         print(f"Reconnected to ADS1115 at address 0x{addr:02x}")
                         break
                     except Exception:
@@ -506,22 +551,33 @@ class DashboardApp(QDialog):
 
 
     def scale_4_20ma_to_engineering(self, voltage, unit_type):
-        v_min, v_max = 0.48, 2.40
+        v_min = getattr(self, 'cal_v_min', 0.48)
+        v_max = getattr(self, 'cal_v_max', 2.40)
+
+        # Apply fine-tuning offsets if specified in configuration
         if unit_type == "pressure":
+            voltage += getattr(self, 'cal_offset_sp', 0.0)
             span_min = self.spin_press_min.value()
             span_max = self.spin_press_max.value()
             if span_max <= span_min: span_max = span_min + 10.0 
         elif unit_type == "dp":
+            voltage += getattr(self, 'cal_offset_dp', 0.0)
             span_min = self.spin_dp_min.value()
             span_max = self.spin_dp_max.value()
             if span_max <= span_min: span_max = span_min + 2500.0
         elif unit_type == "temp":
+            voltage += getattr(self, 'cal_offset_temp', 0.0)
             span_min = self.spin_temp_min.value()
             span_max = self.spin_temp_max.value()
             if span_max <= span_min: span_max = span_min + 150.0
         else:
             return 0.0
 
+        # Disconnected channel or true zero DP transmitter sitting near 0V
+        if voltage < 0.20:
+            return span_min
+
+        # Scale 4-20mA (typically ~0.46V - 2.40V on 120-ohm shunt)
         clamped_v = max(v_min, min(voltage, v_max))
         return span_min + (clamped_v - v_min) * (span_max - span_min) / (v_max - v_min)
 
@@ -535,9 +591,7 @@ class DashboardApp(QDialog):
     def update_system_cycle(self):
         global HARDWARE_AVAILABLE
         # Orifice diameter in inches (as per UI labels and calibration section)
-        # Using as-is since this is a test / placeholder calculation
         orifice_diameter_mm = self.spin_orifice_dia.value() if self.spin_orifice_dia.value() > 0 else 1.0
-        sensor_fault = False
 
         if self.SIMULATION_MODE:
             sim_v_press = 1.44 + random.uniform(-0.02, 0.02)
@@ -556,9 +610,8 @@ class DashboardApp(QDialog):
                 raw_pressure_val += (self.spin_press_max.value() * 0.1)
         else:
             dp_v, sp_v, temp_v, ok = self.read_hardware_sensors()
-            if not ok or dp_v < 0.40 or sp_v < 0.40 or temp_v < 0.40:
-                sensor_fault = True
-            else:
+            if ok:
+                # Update live voltages directly from hardware read
                 self.current_v_dp = dp_v
                 self.current_v_press = sp_v
                 self.current_v_temp = temp_v
@@ -566,15 +619,27 @@ class DashboardApp(QDialog):
                 raw_pressure_val = self.scale_4_20ma_to_engineering(sp_v, "pressure")
                 raw_dp_val = self.scale_4_20ma_to_engineering(dp_v, "dp")
                 raw_temp_val = self.scale_4_20ma_to_engineering(temp_v, "temp")
-
-            if sensor_fault:
-                raw_pressure_val, raw_dp_val, raw_temp_val = 0.0, 0.0, 0.0
-                if not self.hardware_fault_acknowledged:
-                    self.hardware_fault_acknowledged = True
-                    QMessageBox.warning(self, "Hardware Alert", "4-20mA loop fault or I2C communication error detected!\nSwitch to Simulation Mode or check sensor wiring.")
+            else:
+                # Retain last valid readings without freezing the UI or halting execution
+                raw_pressure_val = getattr(self, 'filtered_pressure', 0.0)
+                raw_dp_val = getattr(self, 'filtered_dp', 0.0)
+                raw_temp_val = getattr(self, 'current_temp', 0.0)
 
         # Sync live voltage display labels with the latest voltages
         self.update_live_values()
+
+        # Push to Firebase for web dashboard synchronization if connected
+        if getattr(self, 'firebase_sync', None) and getattr(self.firebase_sync, 'is_connected', False):
+            try:
+                self.firebase_sync.push_current_readings(
+                    self.current_flow_m3h,
+                    self.filtered_pressure,
+                    self.current_temp,
+                    self.filtered_dp,
+                    self.totalizer_m3
+                )
+            except Exception:
+                pass
 
         self.filtered_pressure = (self.alpha * raw_pressure_val) + ((1 - self.alpha) * self.filtered_pressure)
         self.filtered_dp = (self.alpha * raw_dp_val) + ((1 - self.alpha) * self.filtered_dp)
@@ -635,6 +700,22 @@ class DashboardApp(QDialog):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+
+    # Clean immediate terminal exit on Ctrl+C (SIGINT) and SIGTERM
+    def handle_terminal_exit(signum=None, frame=None):
+        print("\n[FlowComputer] Interrupt signal received (Ctrl+C). Terminating...")
+        try:
+            app.quit()
+        finally:
+            sys.exit(0)
+
+    signal.signal(signal.SIGINT, handle_terminal_exit)
+    signal.signal(signal.SIGTERM, handle_terminal_exit)
+
+    # Periodic timer to allow Python signal handler to wake up from Qt event loop
+    sig_timer = QTimer()
+    sig_timer.timeout.connect(lambda: None)
+    sig_timer.start(150)
     
     app.setStyleSheet("""
         QDialog { background-color: #0d1117; }
