@@ -699,13 +699,12 @@ class DashboardApp(QDialog):
         self.filtered_pressure = max(0.0, (self.alpha * raw_pressure_val) + ((1 - self.alpha) * self.filtered_pressure))
         self.filtered_dp = max(0.0, (self.alpha * raw_dp_val) + ((1 - self.alpha) * self.filtered_dp))
 
-        # Convert DP from mmH2O to bars for dual display
-        # 1 bar = 10197.1626 mmH2O (at 4°C), but we'll use ~10000 for simplicity
-        dp_val_mmh2o = self.filtered_dp
-        self.filtered_dp_bar = dp_val_mmh2o / 10000.0
+        # DP transmitter is configured in bar (0.0 to 1.0 bar nameplate)
+        self.filtered_dp_bar = self.filtered_dp
+        self.dp_val_mmh2o = self.filtered_dp * 10000.0
 
         self.current_temp = raw_temp_val
-        self.current_flow_m3h = self.calculate_iso5167_flow(self.filtered_dp, self.filtered_pressure, self.current_temp, orifice_diameter_mm)
+        self.current_flow_m3h = self.calculate_iso5167_flow(self.dp_val_mmh2o, self.filtered_pressure, self.current_temp, orifice_diameter_mm)
         
         self.totalizer_m3 += (self.current_flow_m3h / 3600.0)
 

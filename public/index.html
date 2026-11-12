@@ -772,12 +772,12 @@
                             <div class="form-section-title">DP Transmitter Nameplate (bar)</div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label class="form-label">DP Min (mmH2O)</label>
-                                    <input type="number" step="0.1" id="spin_dp_min" class="form-input" value="0.0">
+                                    <label class="form-label">DP Min (bar)</label>
+                                    <input type="number" step="0.01" id="spin_dp_min" class="form-input" value="0.0">
                                 </div>
                                 <div class="form-group">
-                                    <label class="form-label">DP Max (mmH2O)</label>
-                                    <input type="number" step="0.1" id="spin_dp_max" class="form-input" value="2500.0">
+                                    <label class="form-label">DP Max (bar)</label>
+                                    <input type="number" step="0.01" id="spin_dp_max" class="form-input" value="1.0">
                                 </div>
                             </div>
                         </div>
@@ -822,11 +822,11 @@
                             <div class="form-section-title">Mechanical Geometry</div>
                             <div class="form-group">
                                 <label class="form-label">Pipe Internal Diameter (inch)</label>
-                                <input type="number" step="0.001" id="spin_pipe_dia" class="form-input" value="3.0">
+                                <input type="number" step="0.001" id="spin_pipe_dia" class="form-input" value="1.0">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Orifice Bore Diameter (inch)</label>
-                                <input type="number" step="0.001" id="spin_orifice_dia" class="form-input" value="2.0">
+                                <input type="number" step="0.001" id="spin_orifice_dia" class="form-input" value="1.0">
                             </div>
                         </div>
 
@@ -834,7 +834,7 @@
                             <div class="form-section-title">Fluid Properties</div>
                             <div class="form-group">
                                 <label class="form-label">Base Fluid Density (kg/m&sup3;)</label>
-                                <input type="number" step="0.1" id="spin_fluid_density" class="form-input" value="1.0">
+                                <input type="number" step="0.1" id="spin_fluid_density" class="form-input" value="1000.0">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Dynamic Viscosity (cP)</label>
@@ -847,7 +847,7 @@
                             <div class="form-row">
                                 <div class="form-group">
                                     <label class="form-label">Atmospheric Pressure (bar)</label>
-                                    <input type="number" step="0.01" id="spin_atmospheric" class="form-input" value="1.0">
+                                    <input type="number" step="0.01" id="spin_atmospheric" class="form-input" value="1.013">
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Isentropic Exponent</label>

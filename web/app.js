@@ -76,16 +76,16 @@ const alpha = 0.25;
 // Calibration parameters
 let calibConfig = {
     dp_min: 0.0,
-    dp_max: 2500.0,
+    dp_max: 1.0,
     press_min: 0.0,
     press_max: 60.0,
     temp_min: 0.0,
-    temp_max: 80.0,
-    pipe_dia: 3.0,
-    orifice_dia: 2.0,
-    fluid_density: 1.0,
+    temp_max: 150.0,
+    pipe_dia: 1.0,
+    orifice_dia: 1.0,
+    fluid_density: 1000.0,
     dynamic: 1.0,
-    atmospheric: 1.0,
+    atmospheric: 1.013,
     isentropic: 1.4,
     pipe_expansion: 0.0,
     orifice_expansion: 0.0
@@ -294,9 +294,10 @@ function runSystemCycle() {
 
         filteredPressure = (alpha * rawPressure) + ((1 - alpha) * filteredPressure);
         filteredDP = (alpha * rawDP) + ((1 - alpha) * filteredDP);
-        currentDPBar = filteredDP / 10000.0;
+        currentDPBar = filteredDP;
+        const dpMmH2O = filteredDP * 10000.0;
         currentTemp = rawTemp;
-        currentFlow = calculateISO5167Flow(filteredDP, filteredPressure, currentTemp, calibConfig.orifice_dia);
+        currentFlow = calculateISO5167Flow(dpMmH2O, filteredPressure, currentTemp, calibConfig.orifice_dia);
         totalizerM3 += (currentFlow / 3600.0);
 
         pushChartPoint('flow', currentFlow);
@@ -529,8 +530,8 @@ function initFirebaseListeners() {
             currentFlow = Number(val.flow_rate != null ? val.flow_rate : currentFlow);
             filteredPressure = Number(val.pressure != null ? val.pressure : filteredPressure);
             currentTemp = Number(val.temperature != null ? val.temperature : currentTemp);
-            filteredDP = Number(val.dp != null ? val.dp : filteredDP);
-            currentDPBar = filteredDP / 10000.0;
+            currentDPBar = Number(val.dp != null ? val.dp : currentDPBar);
+            filteredDP = currentDPBar * 10000.0;
             totalizerM3 = Number(val.totalizer != null ? val.totalizer : totalizerM3);
 
             // Reflect simulation / hardware mode from dashboard
