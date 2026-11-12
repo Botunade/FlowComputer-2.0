@@ -696,8 +696,8 @@ class DashboardApp(QDialog):
             except Exception:
                 pass
 
-        self.filtered_pressure = (self.alpha * raw_pressure_val) + ((1 - self.alpha) * self.filtered_pressure)
-        self.filtered_dp = (self.alpha * raw_dp_val) + ((1 - self.alpha) * self.filtered_dp)
+        self.filtered_pressure = max(0.0, (self.alpha * raw_pressure_val) + ((1 - self.alpha) * self.filtered_pressure))
+        self.filtered_dp = max(0.0, (self.alpha * raw_dp_val) + ((1 - self.alpha) * self.filtered_dp))
 
         # Convert DP from mmH2O to bars for dual display
         # 1 bar = 10197.1626 mmH2O (at 4°C), but we'll use ~10000 for simplicity
