@@ -18,5 +18,6 @@
     "v_offset_dp": 0.0,
     "v_offset_sp": 0.0,
     "v_offset_temp": 0.0,
-    "press_offset_bar": 0.002
+    "press_offset_bar": 0.002,
+    "temp_offset_c": 0.0
 }

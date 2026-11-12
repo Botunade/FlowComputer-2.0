@@ -91,7 +91,8 @@ let calibConfig = {
     orifice_expansion: 0.0,
     v_min: 0.468,
     v_max: 2.34,
-    press_offset_bar: 0.002
+    press_offset_bar: 0.002,
+    temp_offset_c: 0.0
 };
 
 // ========================================================
@@ -295,7 +296,7 @@ function runSystemCycle() {
         const vMax = calibConfig.v_max || 2.34;
         let rawPressure = scaleVoltage(simVPress, vMin, vMax, calibConfig.press_min, calibConfig.press_max) + (calibConfig.press_offset_bar || 0.002);
         const rawDP = scaleVoltage(simVDP, vMin, vMax, calibConfig.dp_min, calibConfig.dp_max);
-        const rawTemp = scaleVoltage(simVTemp, vMin, vMax, calibConfig.temp_min, calibConfig.temp_max);
+        const rawTemp = scaleVoltage(simVTemp, vMin, vMax, calibConfig.temp_min, calibConfig.temp_max) + (calibConfig.temp_offset_c || 0.0);
 
         filteredPressure = (alpha * rawPressure) + ((1 - alpha) * filteredPressure);
         filteredDP = (alpha * rawDP) + ((1 - alpha) * filteredDP);

@@ -349,6 +349,7 @@ class DashboardApp(QDialog):
                 self.cal_offset_sp = config.get("v_offset_sp", 0.0)
                 self.cal_offset_temp = config.get("v_offset_temp", 0.0)
                 self.press_offset_bar = config.get("press_offset_bar", 0.002)
+                self.temp_offset_c = config.get("temp_offset_c", 0.0)
                 
             except Exception as e:
                 print(f"Error loading configuration: {e}")
@@ -371,6 +372,7 @@ class DashboardApp(QDialog):
             "pipe_expansion": self.spin_pipe_expansion.value() if hasattr(self, 'spin_pipe_expansion') else 0.0,
             "orifice_expansion": self.spin_orifice_expansion.value() if hasattr(self, 'spin_orifice_expansion') else 0.0,
             "press_offset_bar": getattr(self, 'press_offset_bar', 0.002),
+            "temp_offset_c": getattr(self, 'temp_offset_c', 0.0),
             "v_min": getattr(self, 'cal_v_min', 0.468),
             "v_max": getattr(self, 'cal_v_max', 2.34),
             "v_offset_dp": getattr(self, 'cal_offset_dp', 0.0),
@@ -639,6 +641,8 @@ class DashboardApp(QDialog):
         scaled_val = span_min + (clamped_v - v_min) * (span_max - span_min) / (v_max - v_min)
         if unit_type == "pressure":
             scaled_val += getattr(self, 'press_offset_bar', 0.002)
+        elif unit_type == "temp":
+            scaled_val += getattr(self, 'temp_offset_c', 0.0)
         return scaled_val
 
     def calculate_iso5167_flow(self, dp_mmh2o, pressure_bar, temp_c, orifice_d_mm):
