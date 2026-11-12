@@ -89,9 +89,18 @@ let calibConfig = {
     isentropic: 1.4,
     pipe_expansion: 0.0,
     orifice_expansion: 0.0,
+    v_min_temp: 0.472,
+    v_max_temp: 2.360,
+    r_temp: 118.0,
+    v_min_sp: 0.465,
+    v_max_sp: 2.325,
+    r_sp: 116.24,
+    v_min_dp: 0.468,
+    v_max_dp: 2.340,
+    r_dp: 117.0,
     v_min: 0.468,
     v_max: 2.34,
-    press_offset_bar: 0.002,
+    press_offset_bar: 0.0,
     temp_offset_c: 0.0
 };
 
@@ -292,11 +301,16 @@ function runSystemCycle() {
         const simVDP = 1.44 + (Math.random() * 0.10 - 0.05);
         const simVTemp = 1.44 + (Math.random() * 0.02 - 0.01);
 
-        const vMin = calibConfig.v_min || 0.468;
-        const vMax = calibConfig.v_max || 2.34;
-        let rawPressure = scaleVoltage(simVPress, vMin, vMax, calibConfig.press_min, calibConfig.press_max) + (calibConfig.press_offset_bar || 0.002);
-        const rawDP = scaleVoltage(simVDP, vMin, vMax, calibConfig.dp_min, calibConfig.dp_max);
-        const rawTemp = scaleVoltage(simVTemp, vMin, vMax, calibConfig.temp_min, calibConfig.temp_max) + (calibConfig.temp_offset_c || 0.0);
+        const vMinSP = calibConfig.v_min_sp || 0.465;
+        const vMaxSP = calibConfig.v_max_sp || 2.325;
+        const vMinDP = calibConfig.v_min_dp || 0.468;
+        const vMaxDP = calibConfig.v_max_dp || 2.340;
+        const vMinTemp = calibConfig.v_min_temp || 0.472;
+        const vMaxTemp = calibConfig.v_max_temp || 2.360;
+
+        let rawPressure = scaleVoltage(simVPress, vMinSP, vMaxSP, calibConfig.press_min, calibConfig.press_max) + (calibConfig.press_offset_bar || 0.0);
+        const rawDP = scaleVoltage(simVDP, vMinDP, vMaxDP, calibConfig.dp_min, calibConfig.dp_max);
+        const rawTemp = scaleVoltage(simVTemp, vMinTemp, vMaxTemp, calibConfig.temp_min, calibConfig.temp_max) + (calibConfig.temp_offset_c || 0.0);
 
         filteredPressure = (alpha * rawPressure) + ((1 - alpha) * filteredPressure);
         filteredDP = (alpha * rawDP) + ((1 - alpha) * filteredDP);

@@ -343,12 +343,18 @@ class DashboardApp(QDialog):
                 if hasattr(self, 'spin_pipe_expansion'): self.spin_pipe_expansion.setValue(config.get("pipe_expansion", 0.0))
                 if hasattr(self, 'spin_orifice_expansion'): self.spin_orifice_expansion.setValue(config.get("orifice_expansion", 0.0))
 
+                self.v_min_temp = config.get("v_min_temp", 0.472)
+                self.v_max_temp = config.get("v_max_temp", 2.360)
+                self.v_min_sp = config.get("v_min_sp", 0.465)
+                self.v_max_sp = config.get("v_max_sp", 2.325)
+                self.v_min_dp = config.get("v_min_dp", 0.468)
+                self.v_max_dp = config.get("v_max_dp", 2.340)
                 self.cal_v_min = config.get("v_min", 0.468)
                 self.cal_v_max = config.get("v_max", 2.34)
                 self.cal_offset_dp = config.get("v_offset_dp", 0.0)
                 self.cal_offset_sp = config.get("v_offset_sp", 0.0)
                 self.cal_offset_temp = config.get("v_offset_temp", 0.0)
-                self.press_offset_bar = config.get("press_offset_bar", 0.002)
+                self.press_offset_bar = config.get("press_offset_bar", 0.0)
                 self.temp_offset_c = config.get("temp_offset_c", 0.0)
                 
             except Exception as e:
@@ -371,8 +377,14 @@ class DashboardApp(QDialog):
             "isentropic": self.spin_isentropic.value() if hasattr(self, 'spin_isentropic') else 1.4,
             "pipe_expansion": self.spin_pipe_expansion.value() if hasattr(self, 'spin_pipe_expansion') else 0.0,
             "orifice_expansion": self.spin_orifice_expansion.value() if hasattr(self, 'spin_orifice_expansion') else 0.0,
-            "press_offset_bar": getattr(self, 'press_offset_bar', 0.002),
+            "press_offset_bar": getattr(self, 'press_offset_bar', 0.0),
             "temp_offset_c": getattr(self, 'temp_offset_c', 0.0),
+            "v_min_temp": getattr(self, 'v_min_temp', 0.472),
+            "v_max_temp": getattr(self, 'v_max_temp', 2.360),
+            "v_min_sp": getattr(self, 'v_min_sp', 0.465),
+            "v_max_sp": getattr(self, 'v_max_sp', 2.325),
+            "v_min_dp": getattr(self, 'v_min_dp', 0.468),
+            "v_max_dp": getattr(self, 'v_max_dp', 2.340),
             "v_min": getattr(self, 'cal_v_min', 0.468),
             "v_max": getattr(self, 'cal_v_max', 2.34),
             "v_offset_dp": getattr(self, 'cal_offset_dp', 0.0),
@@ -610,21 +622,24 @@ class DashboardApp(QDialog):
 
 
     def scale_4_20ma_to_engineering(self, voltage, unit_type):
-        v_min = getattr(self, 'cal_v_min', 0.48)
-        v_max = getattr(self, 'cal_v_max', 2.40)
-
-        # Apply fine-tuning offsets if specified in configuration
+        # Treat individual systems independently with their dedicated shunt resistance and spans
         if unit_type == "pressure":
+            v_min = getattr(self, 'v_min_sp', 0.465)
+            v_max = getattr(self, 'v_max_sp', 2.325)
             voltage += getattr(self, 'cal_offset_sp', 0.0)
             span_min = self.spin_press_min.value()
             span_max = self.spin_press_max.value()
-            if span_max <= span_min: span_max = span_min + 10.0 
+            if span_max <= span_min: span_max = span_min + 60.0 
         elif unit_type == "dp":
+            v_min = getattr(self, 'v_min_dp', 0.468)
+            v_max = getattr(self, 'v_max_dp', 2.340)
             voltage += getattr(self, 'cal_offset_dp', 0.0)
             span_min = self.spin_dp_min.value()
             span_max = self.spin_dp_max.value()
-            if span_max <= span_min: span_max = span_min + 2500.0
+            if span_max <= span_min: span_max = span_min + 1.0
         elif unit_type == "temp":
+            v_min = getattr(self, 'v_min_temp', 0.472)
+            v_max = getattr(self, 'v_max_temp', 2.360)
             voltage += getattr(self, 'cal_offset_temp', 0.0)
             span_min = self.spin_temp_min.value()
             span_max = self.spin_temp_max.value()
@@ -636,11 +651,11 @@ class DashboardApp(QDialog):
         if voltage < 0.20:
             return span_min
 
-        # Scale 4-20mA (e.g. ~0.468V - 2.34V on 117-ohm shunt)
+        # Scale 4-20mA independently per channel
         clamped_v = max(v_min, min(voltage, v_max))
         scaled_val = span_min + (clamped_v - v_min) * (span_max - span_min) / (v_max - v_min)
         if unit_type == "pressure":
-            scaled_val += getattr(self, 'press_offset_bar', 0.002)
+            scaled_val += getattr(self, 'press_offset_bar', 0.0)
         elif unit_type == "temp":
             scaled_val += getattr(self, 'temp_offset_c', 0.0)
         return scaled_val
