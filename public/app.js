@@ -88,7 +88,10 @@ let calibConfig = {
     atmospheric: 1.013,
     isentropic: 1.4,
     pipe_expansion: 0.0,
-    orifice_expansion: 0.0
+    orifice_expansion: 0.0,
+    v_min: 0.468,
+    v_max: 2.34,
+    press_offset_bar: 0.002
 };
 
 // ========================================================
@@ -288,9 +291,11 @@ function runSystemCycle() {
         const simVDP = 1.44 + (Math.random() * 0.10 - 0.05);
         const simVTemp = 1.44 + (Math.random() * 0.02 - 0.01);
 
-        const rawPressure = scaleVoltage(simVPress, 0.48, 2.40, calibConfig.press_min, calibConfig.press_max);
-        const rawDP = scaleVoltage(simVDP, 0.48, 2.40, calibConfig.dp_min, calibConfig.dp_max);
-        const rawTemp = scaleVoltage(simVTemp, 0.48, 2.40, calibConfig.temp_min, calibConfig.temp_max);
+        const vMin = calibConfig.v_min || 0.468;
+        const vMax = calibConfig.v_max || 2.34;
+        let rawPressure = scaleVoltage(simVPress, vMin, vMax, calibConfig.press_min, calibConfig.press_max) + (calibConfig.press_offset_bar || 0.002);
+        const rawDP = scaleVoltage(simVDP, vMin, vMax, calibConfig.dp_min, calibConfig.dp_max);
+        const rawTemp = scaleVoltage(simVTemp, vMin, vMax, calibConfig.temp_min, calibConfig.temp_max);
 
         filteredPressure = (alpha * rawPressure) + ((1 - alpha) * filteredPressure);
         filteredDP = (alpha * rawDP) + ((1 - alpha) * filteredDP);
@@ -314,9 +319,9 @@ function runSystemCycle() {
 // Render LCD Displays (Clean Engineering Values Only)
 // ========================================================
 function renderLCDDisplays() {
-    // Flow Rate
+    // Flow Rate (3 decimal places)
     const elFlow = document.getElementById("lcd_flow_rate");
-    if (elFlow) elFlow.textContent = currentFlow.toFixed(2);
+    if (elFlow) elFlow.textContent = currentFlow.toFixed(3);
 
     // Temperature (Dual: °C and °F)
     const elTemp = document.getElementById("lcd_temp");
@@ -327,13 +332,13 @@ function renderLCDDisplays() {
         elTempSub.textContent = `${tempF.toFixed(1)} °F`;
     }
 
-    // Pressure (Dual: bar and psi)
+    // Pressure (Dual: bar and psi, 3 decimal places)
     const elPress = document.getElementById("lcd_pressure");
     const elPressSub = document.getElementById("lcd_pressure_sub");
-    if (elPress) elPress.textContent = filteredPressure.toFixed(2);
+    if (elPress) elPress.textContent = filteredPressure.toFixed(3);
     if (elPressSub) {
         const pressPsi = filteredPressure * 14.5038;
-        elPressSub.textContent = `${pressPsi.toFixed(2)} psi`;
+        elPressSub.textContent = `${pressPsi.toFixed(3)} psi`;
     }
 
     // Differential Pressure (Dual: bar and mmH2O)
@@ -344,10 +349,10 @@ function renderLCDDisplays() {
         elDPSub.textContent = `${filteredDP.toFixed(1)} mmH2O`;
     }
 
-    // Totalizer (Dual: m³ and Liters)
+    // Totalizer (Dual: m³ and Liters, 3 decimal places)
     const elTot = document.getElementById("lcd_totalizer");
     const elTotSub = document.getElementById("lcd_totalizer_sub");
-    if (elTot) elTot.textContent = totalizerM3.toFixed(2);
+    if (elTot) elTot.textContent = totalizerM3.toFixed(3);
     if (elTotSub) {
         const totalizerL = totalizerM3 * 1000.0;
         elTotSub.textContent = `${totalizerL.toFixed(1)} L`;
@@ -376,11 +381,11 @@ function addRowToLogTable(row) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
         <td>${timestamp}</td>
-        <td>${pressure.toFixed(2)} / ${pressPsi.toFixed(2)}</td>
-        <td style="color: #23d18b; font-weight: bold;">${flowRate.toFixed(2)}</td>
+        <td>${pressure.toFixed(3)} / ${pressPsi.toFixed(3)}</td>
+        <td style="color: #23d18b; font-weight: bold;">${flowRate.toFixed(3)}</td>
         <td>${temp.toFixed(1)} / ${tempF.toFixed(1)}</td>
         <td>${dp.toFixed(1)} / ${dpBar.toFixed(4)}</td>
-        <td>${totalizer.toFixed(2)} / ${totalizerL.toFixed(1)}</td>
+        <td>${totalizer.toFixed(3)} / ${totalizerL.toFixed(1)}</td>
     `;
 
     if (tbody.children.length === 1 && tbody.children[0].children.length === 1) {

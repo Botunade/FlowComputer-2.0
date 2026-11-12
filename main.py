@@ -158,6 +158,7 @@ class DashboardApp(QDialog):
             
         for lcd in self.findChildren(QLCDNumber):
             lcd.setSegmentStyle(QLCDNumber.SegmentStyle.Flat)
+            lcd.setDigitCount(8)
 
         # 2. Config File Path
         self.config_file = os.path.join(BASE_DIR, "config.json")
@@ -342,11 +343,12 @@ class DashboardApp(QDialog):
                 if hasattr(self, 'spin_pipe_expansion'): self.spin_pipe_expansion.setValue(config.get("pipe_expansion", 0.0))
                 if hasattr(self, 'spin_orifice_expansion'): self.spin_orifice_expansion.setValue(config.get("orifice_expansion", 0.0))
 
-                self.cal_v_min = config.get("v_min", 0.48)
-                self.cal_v_max = config.get("v_max", 2.40)
+                self.cal_v_min = config.get("v_min", 0.468)
+                self.cal_v_max = config.get("v_max", 2.34)
                 self.cal_offset_dp = config.get("v_offset_dp", 0.0)
                 self.cal_offset_sp = config.get("v_offset_sp", 0.0)
                 self.cal_offset_temp = config.get("v_offset_temp", 0.0)
+                self.press_offset_bar = config.get("press_offset_bar", 0.002)
                 
             except Exception as e:
                 print(f"Error loading configuration: {e}")
@@ -367,7 +369,13 @@ class DashboardApp(QDialog):
             "atmospheric": self.spin_atmospheric.value() if hasattr(self, 'spin_atmospheric') else 1.01325,
             "isentropic": self.spin_isentropic.value() if hasattr(self, 'spin_isentropic') else 1.4,
             "pipe_expansion": self.spin_pipe_expansion.value() if hasattr(self, 'spin_pipe_expansion') else 0.0,
-            "orifice_expansion": self.spin_orifice_expansion.value() if hasattr(self, 'spin_orifice_expansion') else 0.0
+            "orifice_expansion": self.spin_orifice_expansion.value() if hasattr(self, 'spin_orifice_expansion') else 0.0,
+            "press_offset_bar": getattr(self, 'press_offset_bar', 0.002),
+            "v_min": getattr(self, 'cal_v_min', 0.468),
+            "v_max": getattr(self, 'cal_v_max', 2.34),
+            "v_offset_dp": getattr(self, 'cal_offset_dp', 0.0),
+            "v_offset_sp": getattr(self, 'cal_offset_sp', 0.0),
+            "v_offset_temp": getattr(self, 'cal_offset_temp', 0.0)
         }
         
         try:
@@ -626,9 +634,12 @@ class DashboardApp(QDialog):
         if voltage < 0.20:
             return span_min
 
-        # Scale 4-20mA (typically ~0.46V - 2.40V on 120-ohm shunt)
+        # Scale 4-20mA (e.g. ~0.468V - 2.34V on 117-ohm shunt)
         clamped_v = max(v_min, min(voltage, v_max))
-        return span_min + (clamped_v - v_min) * (span_max - span_min) / (v_max - v_min)
+        scaled_val = span_min + (clamped_v - v_min) * (span_max - span_min) / (v_max - v_min)
+        if unit_type == "pressure":
+            scaled_val += getattr(self, 'press_offset_bar', 0.002)
+        return scaled_val
 
     def calculate_iso5167_flow(self, dp_mmh2o, pressure_bar, temp_c, orifice_d_mm):
         if dp_mmh2o <= 0 or pressure_bar <= 0:
@@ -718,18 +729,18 @@ class DashboardApp(QDialog):
         self.curve_temp.setData(self.xdata, self.ydata_temp)
         self.curve_dp.setData(self.xdata, self.ydata_dp)
 
-        self.lcd_flow_rate.display(round(self.current_flow_m3h, 2))
+        self.lcd_flow_rate.display(round(self.current_flow_m3h, 3))
         # Temperature: display in Celsius (label shows °C / °F)
         # °F = (°C × 9/5) + 32
         self.lcd_temp.display(round(self.current_temp, 1))
         # Pressure: display in bar (label shows bar / psi)
         # psi = bar × 14.5038
-        self.lcd_pressure.display(round(self.filtered_pressure, 2))
+        self.lcd_pressure.display(round(self.filtered_pressure, 3))
         # DP: display in bars (label shows bars / mmH2O)
         self.lcd_dp.display(round(self.filtered_dp_bar, 4))
         # Totalizer: display in m³ (label shows m³ / L)
         # liters = m³ × 1000
-        self.lcd_totalizer.display(round(self.totalizer_m3, 2))
+        self.lcd_totalizer.display(round(self.totalizer_m3, 3))
 
     def log_data_to_table(self):
         if not hasattr(self, 'tableWidget'): return
@@ -744,19 +755,19 @@ class DashboardApp(QDialog):
         totalizer_l = self.totalizer_m3 * 1000
 
         self.tableWidget.setItem(row_position, 0, QTableWidgetItem(timestamp))
-        self.tableWidget.setItem(row_position, 1, QTableWidgetItem(f"{self.filtered_pressure:.2f} / {pressure_psi:.2f}"))
-        self.tableWidget.setItem(row_position, 2, QTableWidgetItem(f"{self.current_flow_m3h:.2f}"))
+        self.tableWidget.setItem(row_position, 1, QTableWidgetItem(f"{self.filtered_pressure:.3f} / {pressure_psi:.3f}"))
+        self.tableWidget.setItem(row_position, 2, QTableWidgetItem(f"{self.current_flow_m3h:.3f}"))
         self.tableWidget.setItem(row_position, 3, QTableWidgetItem(f"{self.current_temp:.1f} / {temp_f:.1f}"))
         self.tableWidget.setItem(row_position, 4, QTableWidgetItem(f"{self.filtered_dp:.1f} / {self.filtered_dp_bar:.4f}"))
-        self.tableWidget.setItem(row_position, 5, QTableWidgetItem(f"{self.totalizer_m3:.2f} / {totalizer_l:.2f}"))
+        self.tableWidget.setItem(row_position, 5, QTableWidgetItem(f"{self.totalizer_m3:.3f} / {totalizer_l:.1f}"))
 
         # Sync logged row to Firebase so website Data Logger mirrors dashboard
         if getattr(self, 'firebase_sync', None) and getattr(self.firebase_sync, 'is_connected', False):
             try:
                 self.firebase_sync.log_flow_data({
                     'timestamp': timestamp,
-                    'pressure': round(self.filtered_pressure, 2),
-                    'flow_rate': round(self.current_flow_m3h, 2),
+                    'pressure': round(self.filtered_pressure, 3),
+                    'flow_rate': round(self.current_flow_m3h, 3),
                     'temperature': round(self.current_temp, 1),
                     'dp': round(self.filtered_dp, 1),
                     'totalizer': round(self.totalizer_m3, 2)

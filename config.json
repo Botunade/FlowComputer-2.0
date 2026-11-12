@@ -13,9 +13,10 @@
     "isentropic": 1.4,
     "pipe_expansion": 0.0,
     "orifice_expansion": 0.0,
-    "v_min": 0.48,
-    "v_max": 2.40,
+    "v_min": 0.468,
+    "v_max": 2.34,
     "v_offset_dp": 0.0,
     "v_offset_sp": 0.0,
-    "v_offset_temp": 0.0
+    "v_offset_temp": 0.0,
+    "press_offset_bar": 0.002
 }
